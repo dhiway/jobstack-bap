@@ -2,6 +2,8 @@
 name = "bap-onest-lite"
 version = "0.1.0"
 edition = "2021"
+authors = ['Dhiway Networks <info@dhiway.com>']
+license = "MIT"
 
 [dependencies]
 axum = "0.8.4"
