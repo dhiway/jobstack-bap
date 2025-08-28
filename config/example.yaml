@@ -1,0 +1,38 @@
+# Enable or disable debug logging
+debug: true
+
+http:
+  # The address where the service will listen (0.0.0.0 = all interfaces)
+  address: 0.0.0.0
+  # The port for incoming requests
+  port: 3008
+
+bap:
+  # Unique identifier for your BAP (Buyer App)
+  id: "bap.example.com"
+
+  # caller_uri: This is the endpoint where your BAP receives
+  # responses for requests it initiates to the Beckn network.
+  caller_uri: "https://example.com/bap/caller"
+
+  # bap_uri: This is the publicly accessible endpoint that represents
+  # your BAP in the Beckn network. Other participants send requests here.
+  bap_uri: "https://example.com/bap/receiver"
+
+  # Domain of the network (for example: ONDC verticals like TRV10, RET10, etc.)
+  domain: "ONDC:TRV10"
+
+  # Protocol version used for communication
+  version: "2.0.0"
+
+  # Time-to-live for requests (ISO8601 duration format, e.g., PT30S = 30 seconds)
+  ttl: "PT30S"
+
+redis:
+  # Redis connection string (format: redis://<host>:<port>)
+  url: "redis://localhost:6379"
+
+db: 
+  # Postgres connection string
+  # Format: postgres://<user>:<password>@<host>:<port>/<database>
+  url: "postgres://db_user:db_pass@localhost:5432/db_name"

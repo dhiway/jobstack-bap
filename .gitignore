@@ -1,0 +1,11 @@
+.autometrics
+/*/.idea
+/*/target
+.idea
+target/
+/app/logs/
+.vscode
+.env
+config/prod.yaml
+config/dev.yaml
+config/local.yaml

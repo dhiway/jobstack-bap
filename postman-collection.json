@@ -1,0 +1,833 @@
+{
+	"info": {
+		"_postman_id": "c8bcf643-d1a0-42eb-832f-15f35d7d0b3d",
+		"name": "bap-onest-lite",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "37951187",
+		"_collection_link": "https://sunbird-vm.postman.co/workspace/Dhiway~48b8ac45-26e8-4086-a72a-b05051b832cc/collection/37951187-c8bcf643-d1a0-42eb-832f-15f35d7d0b3d?action=share&source=collection_link&creator=37951187"
+	},
+	"item": [
+		{
+			"name": "draft",
+			"item": [
+				{
+					"name": "create",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n  \"message\": {\n    \"order\": {\n      \"provider\": {\n        \"id\": \"{{provider_id}}\"\n      },\n      \"items\": [\n        {\n          \"id\": \"{{job_id}}\",\n          \"fulfillment_ids\": [\"{{user_id}}\"]\n        }\n      ],\n      \"fulfillments\": [\n        {\n          \"id\": \"{{user_id}}\",\n          \"customer\": {\n            \"person\": {\n                 \"id\": \"{{user_id}}\",\n              \"name\": \"Jane Doe\",\n              \"age\": \"30\",\n              \"gender\": \"Female\",\n              \"skills\": [\n                {\n                  \"code\": \"UI\",\n                  \"name\": \"UI Design\"\n                }\n              ],\n              \"languages\": [\n                {\n                  \"code\": \"en\",\n                  \"name\": \"English\"\n                }\n              ],\n              \"tags\": [\n                {\n                  \"descriptor\": {\n                    \"code\": \"emp-details\",\n                    \"name\": \"Employee Details\"\n                  },\n                  \"list\": [\n                    {\n                      \"descriptor\": {\n                        \"code\": \"expected-salary\",\n                        \"name\": \"Expected Salary\"\n                      },\n                      \"value\": \"1200000\"\n                    },\n                    {\n                      \"descriptor\": {\n                        \"code\": \"total-experience\",\n                        \"name\": \"Total Experience\"\n                      },\n                      \"value\": \"5\"\n                    }\n                  ]\n                }\n              ]\n            },\n            \"contact\": {\n              \"phone\": \"9876543210\",\n              \"email\": \"jane.doe@example.com\"\n            },\n            \"location\": {\n              \"gps\": {\n                \"lat\": 12.9716,\n                \"lng\": 77.5946\n              },\n              \"address\": \"MG Road, Bangalore\",\n              \"city\": {\n                \"name\": \"Bangalore\",\n                \"code\": \"std:080\"\n              },\n              \"state\": {\n                \"name\": \"Karnataka\",\n                \"code\": \"IN-KA\"\n              },\n              \"country\": {\n                \"name\": \"India\",\n                \"code\": \"IN\"\n              }\n            }\n          }\n        }\n      ]\n    }\n  }\n}\n\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts",
+							"host": [
+								"{{bap-onest-lite-demo-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"job-applications",
+								"drafts"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "eg",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n  \"message\": {\n    \"order\": {\n      \"provider\": {\n        \"id\": \"{{provider_id}}\"\n      },\n      \"items\": [\n        {\n          \"id\": \"{{job_id}}\",\n          \"fulfillment_ids\": [\"{{user_id}}\"]\n        }\n      ],\n      \"fulfillments\": [\n        {\n          \"id\": \"{{user_id}}\",\n          \"customer\": {\n            \"person\": {\n                 \"id\": \"{{user_id}}\",\n              \"name\": \"Jane Doe\",\n              \"age\": \"30\",\n              \"gender\": \"Female\",\n              \"skills\": [\n                {\n                  \"code\": \"UI\",\n                  \"name\": \"UI Design\"\n                }\n              ],\n              \"languages\": [\n                {\n                  \"code\": \"en\",\n                  \"name\": \"English\"\n                }\n              ],\n              \"tags\": [\n                {\n                  \"descriptor\": {\n                    \"code\": \"emp-details\",\n                    \"name\": \"Employee Details\"\n                  },\n                  \"list\": [\n                    {\n                      \"descriptor\": {\n                        \"code\": \"expected-salary\",\n                        \"name\": \"Expected Salary\"\n                      },\n                      \"value\": \"1200000\"\n                    },\n                    {\n                      \"descriptor\": {\n                        \"code\": \"total-experience\",\n                        \"name\": \"Total Experience\"\n                      },\n                      \"value\": \"5\"\n                    }\n                  ]\n                }\n              ]\n            },\n            \"contact\": {\n              \"phone\": \"9876543210\",\n              \"email\": \"jane.doe@example.com\"\n            },\n            \"location\": {\n              \"gps\": {\n                \"lat\": 12.9716,\n                \"lng\": 77.5946\n              },\n              \"address\": \"MG Road, Bangalore\",\n              \"city\": {\n                \"name\": \"Bangalore\",\n                \"code\": \"std:080\"\n              },\n              \"state\": {\n                \"name\": \"Karnataka\",\n                \"code\": \"IN-KA\"\n              },\n              \"country\": {\n                \"name\": \"India\",\n                \"code\": \"IN\"\n              }\n            }\n          }\n        }\n      ]\n    }\n  }\n}\n\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts",
+									"host": [
+										"{{bap-onest-lite-demo-url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"job-applications",
+										"drafts"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": null,
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.24.0 (Ubuntu)"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 05 Aug 2025 11:10:54 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								},
+								{
+									"key": "Content-Length",
+									"value": "50"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "vary",
+									"value": "origin, access-control-request-method, access-control-request-headers"
+								},
+								{
+									"key": "access-control-allow-origin",
+									"value": "*"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"message\": \"Draft application saved successfully\"\n}"
+						}
+					]
+				},
+				{
+					"name": "get",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts?user_id={{user_id}}",
+							"host": [
+								"{{bap-onest-lite-demo-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"job-applications",
+								"drafts"
+							],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "eg",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts?user_id={{user_id}}",
+									"host": [
+										"{{bap-onest-lite-demo-url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"job-applications",
+										"drafts"
+									],
+									"query": [
+										{
+											"key": "user_id",
+											"value": "{{user_id}}"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": null,
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.24.0 (Ubuntu)"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 05 Aug 2025 11:12:49 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								},
+								{
+									"key": "Content-Length",
+									"value": "1258"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "vary",
+									"value": "origin, access-control-request-method, access-control-request-headers"
+								},
+								{
+									"key": "access-control-allow-origin",
+									"value": "*"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"applications\": [\n        {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"created_at\": \"2025-08-05T11:10:54.208642Z\",\n            \"id\": 1,\n            \"job_id\": \"3d1817b0-c253-46ec-816c-068de10d0a22\",\n            \"metadata\": {\n                \"order\": {\n                    \"fulfillments\": [\n                        {\n                            \"customer\": {\n                                \"contact\": {\n                                    \"email\": \"jane.doe@example.com\",\n                                    \"phone\": \"9876543210\"\n                                },\n                                \"location\": {\n                                    \"address\": \"MG Road, Bangalore\",\n                                    \"city\": {\n                                        \"code\": \"std:080\",\n                                        \"name\": \"Bangalore\"\n                                    },\n                                    \"country\": {\n                                        \"code\": \"IN\",\n                                        \"name\": \"India\"\n                                    },\n                                    \"gps\": {\n                                        \"lat\": 12.9716,\n                                        \"lng\": 77.5946\n                                    },\n                                    \"state\": {\n                                        \"code\": \"IN-KA\",\n                                        \"name\": \"Karnataka\"\n                                    }\n                                },\n                                \"person\": {\n                                    \"age\": \"30\",\n                                    \"gender\": \"Female\",\n                                    \"id\": \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\",\n                                    \"languages\": [\n                                        {\n                                            \"code\": \"en\",\n                                            \"name\": \"English\"\n                                        }\n                                    ],\n                                    \"name\": \"Jane Doe\",\n                                    \"skills\": [\n                                        {\n                                            \"code\": \"UI\",\n                                            \"name\": \"UI Design\"\n                                        }\n                                    ],\n                                    \"tags\": [\n                                        {\n                                            \"descriptor\": {\n                                                \"code\": \"emp-details\",\n                                                \"name\": \"Employee Details\"\n                                            },\n                                            \"list\": [\n                                                {\n                                                    \"descriptor\": {\n                                                        \"code\": \"expected-salary\",\n                                                        \"name\": \"Expected Salary\"\n                                                    },\n                                                    \"value\": \"1200000\"\n                                                },\n                                                {\n                                                    \"descriptor\": {\n                                                        \"code\": \"total-experience\",\n                                                        \"name\": \"Total Experience\"\n                                                    },\n                                                    \"value\": \"5\"\n                                                }\n                                            ]\n                                        }\n                                    ]\n                                }\n                            },\n                            \"id\": \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\"\n                        }\n                    ],\n                    \"items\": [\n                        {\n                            \"fulfillment_ids\": [\n                                \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\"\n                            ],\n                            \"id\": \"3d1817b0-c253-46ec-816c-068de10d0a22\"\n                        }\n                    ],\n                    \"provider\": {\n                        \"id\": \"KPNS3wvoqzwQPLJDhU38RZkc11lJ8SJ9\"\n                    }\n                }\n            },\n            \"modified_at\": \"2025-08-05T11:10:54.208642Z\"\n        }\n    ],\n    \"user_id\": \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\"\n}"
+						}
+					]
+				},
+				{
+					"name": "update",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n  \"message\": {\n    \"order\": {\n      \"provider\": {\n        \"id\": \"{{provider_id}}\"\n      },\n      \"items\": [\n        {\n          \"id\": \"{{job_id}}\",\n          \"fulfillment_ids\": [\"{{user_id}}\"]\n        }\n      ],\n      \"fulfillments\": [\n        {\n          \"id\": \"{{user_id}}\",\n          \"customer\": {\n            \"person\": {\n                 \"id\": \"{{user_id}}\",\n              \"name\": \"Ashwin Raj CK\",\n              \"age\": \"30\",\n              \"gender\": \"Female\",\n              \"skills\": [\n                {\n                  \"code\": \"UI\",\n                  \"name\": \"UI Design\"\n                }\n              ],\n              \"languages\": [\n                {\n                  \"code\": \"en\",\n                  \"name\": \"English\"\n                }\n              ],\n              \"tags\": [\n                {\n                  \"descriptor\": {\n                    \"code\": \"emp-details\",\n                    \"name\": \"Employee Details\"\n                  },\n                  \"list\": [\n                    {\n                      \"descriptor\": {\n                        \"code\": \"expected-salary\",\n                        \"name\": \"Expected Salary\"\n                      },\n                      \"value\": \"1200000\"\n                    },\n                    {\n                      \"descriptor\": {\n                        \"code\": \"total-experience\",\n                        \"name\": \"Total Experience\"\n                      },\n                      \"value\": \"5\"\n                    }\n                  ]\n                }\n              ]\n            },\n            \"contact\": {\n              \"phone\": \"9876543210\",\n              \"email\": \"jane.doe@example.com\"\n            },\n            \"location\": {\n              \"gps\": {\n                \"lat\": 12.9716,\n                \"lng\": 77.5946\n              },\n              \"address\": \"MG Road, Bangalore\",\n              \"city\": {\n                \"name\": \"Bangalore\",\n                \"code\": \"std:080\"\n              },\n              \"state\": {\n                \"name\": \"Karnataka\",\n                \"code\": \"IN-KA\"\n              },\n              \"country\": {\n                \"name\": \"India\",\n                \"code\": \"IN\"\n              }\n            }\n          }\n        }\n      ]\n    }\n  }\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts/1",
+							"host": [
+								"{{bap-onest-lite-demo-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"job-applications",
+								"drafts",
+								"1"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "eg",
+							"originalRequest": {
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n  \"message\": {\n    \"order\": {\n      \"provider\": {\n        \"id\": \"{{provider_id}}\"\n      },\n      \"items\": [\n        {\n          \"id\": \"{{job_id}}\",\n          \"fulfillment_ids\": [\"{{user_id}}\"]\n        }\n      ],\n      \"fulfillments\": [\n        {\n          \"id\": \"{{user_id}}\",\n          \"customer\": {\n            \"person\": {\n                 \"id\": \"{{user_id}}\",\n              \"name\": \"Ashwin Test\",\n              \"age\": \"30\",\n              \"gender\": \"Female\",\n              \"skills\": [\n                {\n                  \"code\": \"UI\",\n                  \"name\": \"UI Design\"\n                }\n              ],\n              \"languages\": [\n                {\n                  \"code\": \"en\",\n                  \"name\": \"English\"\n                }\n              ],\n              \"tags\": [\n                {\n                  \"descriptor\": {\n                    \"code\": \"emp-details\",\n                    \"name\": \"Employee Details\"\n                  },\n                  \"list\": [\n                    {\n                      \"descriptor\": {\n                        \"code\": \"expected-salary\",\n                        \"name\": \"Expected Salary\"\n                      },\n                      \"value\": \"1200000\"\n                    },\n                    {\n                      \"descriptor\": {\n                        \"code\": \"total-experience\",\n                        \"name\": \"Total Experience\"\n                      },\n                      \"value\": \"5\"\n                    }\n                  ]\n                }\n              ]\n            },\n            \"contact\": {\n              \"phone\": \"9876543210\",\n              \"email\": \"jane.doe@example.com\"\n            },\n            \"location\": {\n              \"gps\": {\n                \"lat\": 12.9716,\n                \"lng\": 77.5946\n              },\n              \"address\": \"MG Road, Bangalore\",\n              \"city\": {\n                \"name\": \"Bangalore\",\n                \"code\": \"std:080\"\n              },\n              \"state\": {\n                \"name\": \"Karnataka\",\n                \"code\": \"IN-KA\"\n              },\n              \"country\": {\n                \"name\": \"India\",\n                \"code\": \"IN\"\n              }\n            }\n          }\n        }\n      ]\n    }\n  }\n}\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts/1",
+									"host": [
+										"{{bap-onest-lite-demo-url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"job-applications",
+										"drafts",
+										"1"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": null,
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.24.0 (Ubuntu)"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 05 Aug 2025 11:14:17 GMT"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								},
+								{
+									"key": "Content-Length",
+									"value": "52"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "vary",
+									"value": "origin, access-control-request-method, access-control-request-headers"
+								},
+								{
+									"key": "access-control-allow-origin",
+									"value": "*"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"message\": \"Draft application updated successfully\"\n}"
+						}
+					]
+				},
+				{
+					"name": "delete",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts/1",
+							"host": [
+								"{{bap-onest-lite-demo-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"job-applications",
+								"drafts",
+								"1"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "eg",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications/drafts/1",
+									"host": [
+										"{{bap-onest-lite-demo-url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"job-applications",
+										"drafts",
+										"1"
+									]
+								}
+							},
+							"status": "No Content",
+							"code": 204,
+							"_postman_previewlanguage": null,
+							"header": [
+								{
+									"key": "Server",
+									"value": "nginx/1.24.0 (Ubuntu)"
+								},
+								{
+									"key": "Date",
+									"value": "Tue, 05 Aug 2025 11:15:33 GMT"
+								},
+								{
+									"key": "Connection",
+									"value": "keep-alive"
+								},
+								{
+									"key": "vary",
+									"value": "origin, access-control-request-method, access-control-request-headers"
+								},
+								{
+									"key": "access-control-allow-origin",
+									"value": "*"
+								}
+							],
+							"cookie": [],
+							"body": null
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "search",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"message\": {\n        \"intent\": {\n            // \"provider\": {\n            //     \"descriptor\": {\n            //          \"name\": \"way\"\n            //     }\n            }\n        }\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bap-onest-lite-demo-url}}/api/v1/search",
+					"host": [
+						"{{bap-onest-lite-demo-url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"search"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "New Request",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": {\n        \"intent\": {\n            \"provider\": {\n                \"descriptor\": {\n                     \"name\": \"Dhiway\"\n                }\n            }\n        }\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://onest-lite-bap.dhiway.net/api/v1/search",
+							"protocol": "https",
+							"host": [
+								"onest-lite-bap",
+								"dhiway",
+								"net"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx/1.24.0 (Ubuntu)"
+						},
+						{
+							"key": "Date",
+							"value": "Mon, 30 Jun 2025 06:26:26 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "Content-Length",
+							"value": "2161"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						}
+					],
+					"cookie": [],
+					"body": "[\n    {\n        \"context\": {\n            \"action\": \"on_search\",\n            \"bap_id\": \"bap.dhiway.com\",\n            \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/caller\",\n            \"domain\": \"ONDC:TRV10\",\n            \"message_id\": \"msg-f18df632-dd99-4c6f-9369-59f121676f75\",\n            \"timestamp\": \"2025-06-30T06:26:23.478820526+00:00\",\n            \"transaction_id\": \"txn-c6d40976-392f-46f0-9195-8e106d1e70c7\",\n            \"version\": \"2.0.0\"\n        },\n        \"message\": {\n            \"catalog\": {\n                \"descriptor\": {\n                    \"name\": \"Job Catalog\"\n                },\n                \"providers\": [\n                    {\n                        \"descriptor\": {\n                            \"name\": \"Dhiway\"\n                        },\n                        \"fulfillments\": [\n                            {\n                                \"id\": \"fulfillment-3d1817b0-c253-46ec-816c-068de10d0a22\",\n                                \"stops\": [\n                                    {\n                                        \"location\": {\n                                            \"address\": \"123 Fashion Street\",\n                                            \"city\": \"New Delhi\",\n                                            \"country\": \"India\",\n                                            \"gps\": {\n                                                \"lat\": 28.6139,\n                                                \"lng\": 77.209\n                                            },\n                                            \"state\": \"Delhi\",\n                                            \"tag\": \"Workshop\"\n                                        },\n                                        \"type\": \"end\"\n                                    }\n                                ]\n                            }\n                        ],\n                        \"id\": \"KPNS3wvoqzwQPLJDhU38RZkc11lJ8SJ9\",\n                        \"items\": [\n                            {\n                                \"descriptor\": {\n                                    \"name\": \"Experienced Tailor Needed\"\n                                },\n                                \"id\": \"3d1817b0-c253-46ec-816c-068de10d0a22\",\n                                \"tags\": [\n                                    {\n                                        \"descriptor\": {\n                                            \"code\": \"listing-details\"\n                                        },\n                                        \"list\": [\n                                            {\n                                                \"descriptor\": {\n                                                    \"code\": \"description\"\n                                                },\n                                                \"value\": \"We are looking for an experienced tailor who can handle custom fittings and alterations for premium clients. Must have at least 5 years of experience.\"\n                                            }\n                                        ]\n                                    }\n                                ]\n                            }\n                        ],\n                        \"locations\": [\n                            {\n                                \"address\": \"123 Fashion Street\",\n                                \"city\": \"New Delhi\",\n                                \"country\": \"India\",\n                                \"gps\": {\n                                    \"lat\": 28.6139,\n                                    \"lng\": 77.209\n                                },\n                                \"state\": \"Delhi\",\n                                \"tag\": \"Workshop\"\n                            }\n                        ]\n                    },\n                    {\n                        \"descriptor\": {\n                            \"name\": \"Dhiway\"\n                        },\n                        \"fulfillments\": [\n                            {\n                                \"id\": \"fulfillment-8394ded5-060e-4b29-996e-edaff13e38f9\",\n                                \"stops\": [\n                                    {\n                                        \"location\": {\n                                            \"address\": \"123 Fashion Street\",\n                                            \"city\": \"New Delhi\",\n                                            \"country\": \"India\",\n                                            \"gps\": {\n                                                \"lat\": 28.6139,\n                                                \"lng\": 77.209\n                                            },\n                                            \"state\": \"Delhi\",\n                                            \"tag\": \"Workshop\"\n                                        },\n                                        \"type\": \"end\"\n                                    }\n                                ]\n                            }\n                        ],\n                        \"id\": \"ch295oFQrtNgjLVQae8AuRYqsVRtxkWu\",\n                        \"items\": [\n                            {\n                                \"descriptor\": {\n                                    \"name\": \"Experienced Tailor Needed\"\n                                },\n                                \"id\": \"8394ded5-060e-4b29-996e-edaff13e38f9\",\n                                \"tags\": [\n                                    {\n                                        \"descriptor\": {\n                                            \"code\": \"listing-details\"\n                                        },\n                                        \"list\": [\n                                            {\n                                                \"descriptor\": {\n                                                    \"code\": \"description\"\n                                                },\n                                                \"value\": \"We are looking for an experienced tailor who can handle custom fittings and alterations for premium clients. Must have at least 5 years of experience.\"\n                                            }\n                                        ]\n                                    }\n                                ]\n                            }\n                        ],\n                        \"locations\": [\n                            {\n                                \"address\": \"123 Fashion Street\",\n                                \"city\": \"New Delhi\",\n                                \"country\": \"India\",\n                                \"gps\": {\n                                    \"lat\": 28.6139,\n                                    \"lng\": 77.209\n                                },\n                                \"state\": \"Delhi\",\n                                \"tag\": \"Workshop\"\n                            }\n                        ]\n                    }\n                ]\n            }\n        }\n    }\n]"
+				}
+			]
+		},
+		{
+			"name": "select",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n\n \"message\": {\n        \"order\": {\n            \"provider\": {\n                \"id\": \"{{provider_id}}\"\n            },\n            \"items\": [\n                {\n                    \"id\":\"{{job_id}}\"\n                }\n            ]\n        }\n    }\n}\n    \n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bap-onest-lite-demo-url}}/api/v1/select",
+					"host": [
+						"{{bap-onest-lite-demo-url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"select"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "New Request",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n\n \"message\": {\n        \"order\": {\n            \"provider\": {\n                \"id\": \"{{provider_id}}\"\n            },\n            \"items\": [\n                {\n                    \"id\":\"{{job_id}}\"\n                }\n            ]\n        }\n    }\n}\n    \n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{bap-onest-lite-prod-url}}/api/v1/select",
+							"host": [
+								"{{bap-onest-lite-prod-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"select"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx/1.24.0 (Ubuntu)"
+						},
+						{
+							"key": "Date",
+							"value": "Mon, 30 Jun 2025 06:32:04 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "Content-Length",
+							"value": "1356"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"context\": {\n        \"action\": \"on_select\",\n        \"bap_id\": \"bap.dhiway.com\",\n        \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n        \"bpp_id\": \"bpp1.dhiway.com\",\n        \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/caller\",\n        \"domain\": \"ONDC:TRV10\",\n        \"message_id\": \"msg-69e84fc8-e67f-4a00-a4cc-1867e6386938\",\n        \"timestamp\": \"2025-06-30T06:32:04.439205154+00:00\",\n        \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\",\n        \"version\": \"2.0.0\"\n    },\n    \"message\": {\n        \"order\": {\n            \"fulfillments\": [\n                {\n                    \"id\": \"fulfillment-3d1817b0-c253-46ec-816c-068de10d0a22\",\n                    \"stops\": [\n                        {\n                            \"location\": {\n                                \"address\": \"123 Fashion Street\",\n                                \"city\": \"New Delhi\",\n                                \"country\": \"India\",\n                                \"gps\": {\n                                    \"lat\": 28.6139,\n                                    \"lng\": 77.209\n                                },\n                                \"state\": \"Delhi\",\n                                \"tag\": \"Workshop\"\n                            },\n                            \"type\": \"end\"\n                        }\n                    ]\n                }\n            ],\n            \"items\": [\n                {\n                    \"descriptor\": {\n                        \"name\": \"Experienced Tailor Needed\"\n                    },\n                    \"id\": \"3d1817b0-c253-46ec-816c-068de10d0a22\",\n                    \"time\": {\n                        \"range\": {\n                            \"end\": \"2025-06-30T05:28:01.074Z\",\n                            \"start\": \"2025-06-30T05:28:01.074Z\"\n                        }\n                    }\n                }\n            ],\n            \"provider\": {\n                \"descriptor\": {\n                    \"name\": \"Dhiway\"\n                },\n                \"fulfillments\": [\n                    {\n                        \"id\": \"fulfillment-3d1817b0-c253-46ec-816c-068de10d0a22\",\n                        \"stops\": [\n                            {\n                                \"location\": {\n                                    \"address\": \"123 Fashion Street\",\n                                    \"city\": \"New Delhi\",\n                                    \"country\": \"India\",\n                                    \"gps\": {\n                                        \"lat\": 28.6139,\n                                        \"lng\": 77.209\n                                    },\n                                    \"state\": \"Delhi\",\n                                    \"tag\": \"Workshop\"\n                                },\n                                \"type\": \"end\"\n                            }\n                        ]\n                    }\n                ],\n                \"id\": \"KPNS3wvoqzwQPLJDhU38RZkc11lJ8SJ9\",\n                \"locations\": [\n                    {\n                        \"address\": \"123 Fashion Street\",\n                        \"city\": \"New Delhi\",\n                        \"country\": \"India\",\n                        \"gps\": {\n                            \"lat\": 28.6139,\n                            \"lng\": 77.209\n                        },\n                        \"state\": \"Delhi\",\n                        \"tag\": \"Workshop\"\n                    }\n                ]\n            }\n        }\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "apply job",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{  \n      \"context\": {\n  \n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n\n        }\n,\n  \n  \"message\": {\n    \"order\": {\n      \"provider\": {\n        \"id\": \"{{ORG_ID}}\"\n      },\n      \"items\": [\n        {\n          \"id\": \"{{JOB_ID}}\",\n          \"fulfillment_ids\": [\"{{USER_ID}}\"]\n        }\n      ],\n      \"fulfillments\": [\n        {\n          \"id\": \"{{USER_ID}}\",\n          \"customer\": {\n            \"person\": {\n                \"id\": \"{{USER_ID}}\",\n              \"name\": \"Jane Doe\",\n              \"age\": \"30\",\n              \"gender\": \"Female\",\n              \"skills\": [\n                {\n                  \"code\": \"UI\",\n                  \"name\": \"UI Design\"\n                }\n              ],\n              \"languages\": [\n                {\n                  \"code\": \"en\",\n                  \"name\": \"English\"\n                }\n              ],\n              \"tags\": [\n                {\n                  \"descriptor\": {\n                    \"code\": \"emp-details\",\n                    \"name\": \"Employee Details\"\n                  },\n                  \"list\": [\n                    {\n                      \"descriptor\": {\n                        \"code\": \"expected-salary\",\n                        \"name\": \"Expected Salary\"\n                      },\n                      \"value\": \"1200000\"\n                    },\n                    {\n                      \"descriptor\": {\n                        \"code\": \"total-experience\",\n                        \"name\": \"Total Experience\"\n                      },\n                      \"value\": \"5\"\n                    }\n                  ]\n                }\n              ]\n            },\n            \"contact\": {\n              \"phone\": \"9876543210\",\n              \"email\": \"jane.doe@example.com\"\n            },\n            \"location\": {\n              \"gps\": {\n                \"lat\": 12.9716,\n                \"lng\": 77.5946\n              },\n              \"address\": \"MG Road, Bangalore\",\n              \"city\": {\n                \"name\": \"Bangalore\",\n                \"code\": \"std:080\"\n              },\n              \"state\": {\n                \"name\": \"Karnataka\",\n                \"code\": \"IN-KA\"\n              },\n              \"country\": {\n                \"name\": \"India\",\n                \"code\": \"IN\"\n              }\n            }\n          }\n        }\n      ]\n    }\n  }\n}\n\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bap-onest-lite-prod-url}}/api/v1/apply",
+					"host": [
+						"{{bap-onest-lite-prod-url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"apply"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "New Request",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{  \n      \"context\": {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n,\n  \"message\": {\n    \"order\": {\n      \"provider\": {\n        \"id\": \"{{provider_id}}\"\n      },\n      \"items\": [\n        {\n          \"id\": \"{{job_id}}\",\n          \"fulfillment_ids\": [\"{{user_id}}\"]\n        }\n      ],\n      \"fulfillments\": [\n        {\n          \"id\": \"{{user_id}}\",\n          \"customer\": {\n            \"person\": {\n              \"name\": \"Jane Doe\",\n              \"age\": \"30\",\n              \"gender\": \"Female\",\n              \"skills\": [\n                {\n                  \"code\": \"UI\",\n                  \"name\": \"UI Design\"\n                }\n              ],\n              \"languages\": [\n                {\n                  \"code\": \"en\",\n                  \"name\": \"English\"\n                }\n              ],\n              \"tags\": [\n                {\n                  \"descriptor\": {\n                    \"code\": \"emp-details\",\n                    \"name\": \"Employee Details\"\n                  },\n                  \"list\": [\n                    {\n                      \"descriptor\": {\n                        \"code\": \"expected-salary\",\n                        \"name\": \"Expected Salary\"\n                      },\n                      \"value\": \"1200000\"\n                    },\n                    {\n                      \"descriptor\": {\n                        \"code\": \"total-experience\",\n                        \"name\": \"Total Experience\"\n                      },\n                      \"value\": \"5\"\n                    }\n                  ]\n                }\n              ]\n            },\n            \"contact\": {\n              \"phone\": \"9876543210\",\n              \"email\": \"jane.doe@example.com\"\n            },\n            \"location\": {\n              \"gps\": {\n                \"lat\": 12.9716,\n                \"lng\": 77.5946\n              },\n              \"address\": \"MG Road, Bangalore\",\n              \"city\": {\n                \"name\": \"Bangalore\",\n                \"code\": \"std:080\"\n              },\n              \"state\": {\n                \"name\": \"Karnataka\",\n                \"code\": \"IN-KA\"\n              },\n              \"country\": {\n                \"name\": \"India\",\n                \"code\": \"IN\"\n              }\n            }\n          }\n        }\n      ]\n    }\n  }\n}\n\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{bap-onest-lite-prod-url}}/api/v1/apply",
+							"host": [
+								"{{bap-onest-lite-prod-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"apply"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx/1.24.0 (Ubuntu)"
+						},
+						{
+							"key": "Date",
+							"value": "Mon, 30 Jun 2025 06:39:28 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "Content-Length",
+							"value": "1595"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"context\": {\n        \"action\": \"on_init\",\n        \"bap_id\": \"bap.dhiway.com\",\n        \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n        \"bpp_id\": \"bpp1.dhiway.com\",\n        \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/caller\",\n        \"domain\": \"ONDC:TRV10\",\n        \"message_id\": \"msg-cd44a4e0-2f2d-46f9-973f-0c582204fd4f\",\n        \"timestamp\": \"2025-06-30T06:39:28.360202886+00:00\",\n        \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\",\n        \"version\": \"2.0.0\"\n    },\n    \"message\": {\n        \"order\": {\n            \"fulfillments\": [\n                {\n                    \"customer\": {\n                        \"contact\": {\n                            \"email\": \"jane.doe@example.com\",\n                            \"phone\": \"9876543210\"\n                        },\n                        \"location\": {\n                            \"address\": \"MG Road, Bangalore\",\n                            \"city\": {\n                                \"code\": \"std:080\",\n                                \"name\": \"Bangalore\"\n                            },\n                            \"country\": {\n                                \"code\": \"IN\",\n                                \"name\": \"India\"\n                            },\n                            \"gps\": {\n                                \"lat\": 12.9716,\n                                \"lng\": 77.5946\n                            },\n                            \"state\": {\n                                \"code\": \"IN-KA\",\n                                \"name\": \"Karnataka\"\n                            }\n                        },\n                        \"person\": {\n                            \"age\": \"30\",\n                            \"gender\": \"Female\",\n                            \"languages\": [\n                                {\n                                    \"code\": \"en\",\n                                    \"name\": \"English\"\n                                }\n                            ],\n                            \"name\": \"Jane Doe\",\n                            \"skills\": [\n                                {\n                                    \"code\": \"UI\",\n                                    \"name\": \"UI Design\"\n                                }\n                            ],\n                            \"tags\": [\n                                {\n                                    \"descriptor\": {\n                                        \"code\": \"emp-details\",\n                                        \"name\": \"Employee Details\"\n                                    },\n                                    \"list\": [\n                                        {\n                                            \"descriptor\": {\n                                                \"code\": \"expected-salary\",\n                                                \"name\": \"Expected Salary\"\n                                            },\n                                            \"value\": \"1200000\"\n                                        },\n                                        {\n                                            \"descriptor\": {\n                                                \"code\": \"total-experience\",\n                                                \"name\": \"Total Experience\"\n                                            },\n                                            \"value\": \"5\"\n                                        }\n                                    ]\n                                }\n                            ]\n                        }\n                    },\n                    \"id\": \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\"\n                }\n            ],\n            \"items\": [\n                {\n                    \"descriptor\": {\n                        \"name\": \"Experienced Tailor Needed\"\n                    },\n                    \"id\": \"3d1817b0-c253-46ec-816c-068de10d0a22\",\n                    \"time\": {\n                        \"range\": {\n                            \"end\": \"2025-06-30T05:28:01.074Z\",\n                            \"start\": \"2025-06-30T05:28:01.074Z\"\n                        }\n                    }\n                }\n            ],\n            \"provider\": {\n                \"descriptor\": {\n                    \"name\": \"Dhiway\"\n                },\n                \"id\": \"KPNS3wvoqzwQPLJDhU38RZkc11lJ8SJ9\",\n                \"locations\": [\n                    {\n                        \"address\": \"123 Fashion Street\",\n                        \"city\": \"New Delhi\",\n                        \"country\": \"India\",\n                        \"gps\": {\n                            \"lat\": 28.6139,\n                            \"lng\": 77.209\n                        },\n                        \"state\": \"Delhi\",\n                        \"tag\": \"Workshop\"\n                    }\n                ]\n            }\n        }\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "Job Applications",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{bap-onest-lite-demo-url}}/api/v1/job-applications?user_id={{user_id}}&status=DRAFT",
+					"host": [
+						"{{bap-onest-lite-demo-url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"job-applications"
+					],
+					"query": [
+						{
+							"key": "user_id",
+							"value": "{{user_id}}"
+						},
+						{
+							"key": "status",
+							"value": "DRAFT"
+						}
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "New Request",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{bap-onest-lite-prod-url}}/api/v1/job-applications?user_id=X41CvvbKL8J05veORoj7ggSTT2Pbsabz",
+							"host": [
+								"{{bap-onest-lite-prod-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"job-applications"
+							],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "X41CvvbKL8J05veORoj7ggSTT2Pbsabz"
+								}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx/1.24.0 (Ubuntu)"
+						},
+						{
+							"key": "Date",
+							"value": "Sun, 06 Jul 2025 20:46:50 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "Content-Length",
+							"value": "1968"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"applications\": [\n        {\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/caller\",\n            \"job_id\": \"fc58c93c-2719-4931-a5c7-496d7e41487d\",\n            \"metadata\": {\n                \"context\": {\n                    \"action\": \"on_confirm\",\n                    \"bap_id\": \"bap.dhiway.com\",\n                    \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n                    \"bpp_id\": \"bpp1.dhiway.com\",\n                    \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/caller\",\n                    \"domain\": \"ONDC:TRV10\",\n                    \"message_id\": \"msg-31603d67-c7d4-4739-a4d9-965150f82785\",\n                    \"timestamp\": \"2025-07-04T10:55:18.348542681+00:00\",\n                    \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\",\n                    \"version\": \"2.0.0\"\n                },\n                \"message\": {\n                    \"order\": {\n                        \"fulfillments\": [\n                            {\n                                \"customer\": {\n                                    \"contact\": {\n                                        \"email\": \"jane.doe@example.com\",\n                                        \"phone\": \"9876543210\"\n                                    },\n                                    \"location\": {\n                                        \"address\": \"MG Road, Bangalore\",\n                                        \"city\": {\n                                            \"code\": \"std:080\",\n                                            \"name\": \"Bangalore\"\n                                        },\n                                        \"country\": {\n                                            \"code\": \"IN\",\n                                            \"name\": \"India\"\n                                        },\n                                        \"gps\": {\n                                            \"lat\": 12.9716,\n                                            \"lng\": 77.5946\n                                        },\n                                        \"state\": {\n                                            \"code\": \"IN-KA\",\n                                            \"name\": \"Karnataka\"\n                                        }\n                                    },\n                                    \"person\": {\n                                        \"age\": \"30\",\n                                        \"gender\": \"Female\",\n                                        \"languages\": [\n                                            {\n                                                \"code\": \"en\",\n                                                \"name\": \"English\"\n                                            }\n                                        ],\n                                        \"name\": \"Jane Doe\",\n                                        \"skills\": [\n                                            {\n                                                \"code\": \"UI\",\n                                                \"name\": \"UI Design\"\n                                            }\n                                        ],\n                                        \"tags\": [\n                                            {\n                                                \"descriptor\": {\n                                                    \"code\": \"emp-details\",\n                                                    \"name\": \"Employee Details\"\n                                                },\n                                                \"list\": [\n                                                    {\n                                                        \"descriptor\": {\n                                                            \"code\": \"expected-salary\",\n                                                            \"name\": \"Expected Salary\"\n                                                        },\n                                                        \"value\": \"1200000\"\n                                                    },\n                                                    {\n                                                        \"descriptor\": {\n                                                            \"code\": \"total-experience\",\n                                                            \"name\": \"Total Experience\"\n                                                        },\n                                                        \"value\": \"5\"\n                                                    }\n                                                ]\n                                            }\n                                        ]\n                                    }\n                                },\n                                \"id\": \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\"\n                            }\n                        ],\n                        \"id\": \"25453c06-c266-4954-a6a5-346aca3e1a65\",\n                        \"items\": [\n                            {\n                                \"descriptor\": {\n                                    \"name\": \"Experienced Watchman Needed\"\n                                },\n                                \"id\": \"fc58c93c-2719-4931-a5c7-496d7e41487d\",\n                                \"time\": {\n                                    \"range\": {\n                                        \"end\": null,\n                                        \"start\": \"2025-07-03T11:05:12.521Z\"\n                                    }\n                                }\n                            }\n                        ],\n                        \"provider\": {\n                            \"descriptor\": {\n                                \"name\": \"Ashwin Test Org\"\n                            },\n                            \"id\": \"cDlckBFEofIBhcC9Fm9i8UfeeaHBXeGH\",\n                            \"locations\": [\n                                {\n                                    \"address\": \"123 Fashion Street\",\n                                    \"city\": \"New Delhi\",\n                                    \"country\": \"India\",\n                                    \"gps\": {\n                                        \"lat\": 28.6139,\n                                        \"lng\": 77.209\n                                    },\n                                    \"state\": \"Delhi\",\n                                    \"tag\": \"Workshop\"\n                                }\n                            ]\n                        }\n                    }\n                }\n            },\n            \"order_id\": \"25453c06-c266-4954-a6a5-346aca3e1a65\",\n            \"status\": \"applied\",\n            \"transaction_id\": \"txn-9a5ca5e7-214b-4932-9968-d810442622bf\"\n        }\n    ],\n    \"user_id\": \"X41CvvbKL8J05veORoj7ggSTT2Pbsabz\"\n}"
+				}
+			]
+		},
+		{
+			"name": "status",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{  \n      \"context\": {\n            // \"action\": \"select\",\n            // \"bap_id\": \"bap.dhiway.com\",\n            // \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            // \"domain\": \"ONDC:TRV10\",\n            // \"message_id\": \"msg-ff1a9047-aa92-41f1-aa78-c94671b12385\",\n            // \"timestamp\": \"2025-06-16T08:04:09.055Z\",\n            \"transaction_id\": \"txn-1752133027389-s6z3lnxa2\"\n            // \"version\": \"2.0.0\"\n        }\n,\n\n \"message\": {\n        \"order\": {\n       \"id\": \"656cc731-39ee-499c-833c-a58aec1d1d20\"\n        }\n    }\n}\n    \n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bap-onest-lite-prod-url}}/api/v1/status",
+					"host": [
+						"{{bap-onest-lite-prod-url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"status"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "New Request",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{  \n      \"context\": {\n            // \"action\": \"select\",\n            // \"bap_id\": \"bap.dhiway.com\",\n            // \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n            \"bpp_id\": \"bpp1.dhiway.com\",\n            \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/receiver\",\n            // \"domain\": \"ONDC:TRV10\",\n            // \"message_id\": \"msg-ff1a9047-aa92-41f1-aa78-c94671b12385\",\n            // \"timestamp\": \"2025-06-16T08:04:09.055Z\",\n            \"transaction_id\": \"txn-1752133027389-s6z3lnxa2\"\n            // \"version\": \"2.0.0\"\n        }\n,\n\n \"message\": {\n        \"order\": {\n       \"id\": \"656cc731-39ee-499c-833c-a58aec1d1d20\"\n        }\n    }\n}\n    \n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{bap-onest-lite-prod-url}}/api/v1/status",
+							"host": [
+								"{{bap-onest-lite-prod-url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"status"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Server",
+							"value": "nginx/1.24.0 (Ubuntu)"
+						},
+						{
+							"key": "Date",
+							"value": "Thu, 10 Jul 2025 07:41:55 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "Content-Length",
+							"value": "993"
+						},
+						{
+							"key": "Connection",
+							"value": "keep-alive"
+						},
+						{
+							"key": "vary",
+							"value": "origin, access-control-request-method, access-control-request-headers"
+						},
+						{
+							"key": "access-control-allow-origin",
+							"value": "*"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"context\": {\n        \"action\": \"on_status\",\n        \"bap_id\": \"bap.dhiway.com\",\n        \"bap_uri\": \"https://beckn-adapter.dhiway.net/bap/receiver\",\n        \"bpp_id\": \"bpp1.dhiway.com\",\n        \"bpp_uri\": \"https://beckn-adapter.dhiway.net/bpp/caller\",\n        \"domain\": \"ONDC:TRV10\",\n        \"message_id\": \"msg-6f3ba598-571d-4841-a43a-a376adc03689\",\n        \"timestamp\": \"2025-07-10T07:41:54.884296571+00:00\",\n        \"transaction_id\": \"txn-1752133027389-s6z3lnxa2\",\n        \"version\": \"2.0.0\"\n    },\n    \"message\": {\n        \"order\": {\n            \"fulfillments\": [\n                {\n                    \"id\": \"kEBZzTrPpmaNSMeNGEpENlcq13kJcq0u\",\n                    \"state\": {\n                        \"descriptor\": {\n                            \"code\": \"open\",\n                            \"name\": \"\"\n                        }\n                    }\n                }\n            ],\n            \"id\": \"656cc731-39ee-499c-833c-a58aec1d1d20\",\n            \"items\": [\n                {\n                    \"descriptor\": {\n                        \"name\": \"AGB\"\n                    },\n                    \"id\": \"656cc731-39ee-499c-833c-a58aec1d1d20\",\n                    \"time\": {\n                        \"range\": {\n                            \"start\": \"2025-07-10T07:37:08.022Z\"\n                        }\n                    }\n                }\n            ],\n            \"provider\": {\n                \"descriptor\": {\n                    \"name\": \"Test_org\"\n                },\n                \"id\": \"av5MHPBJD1PQw4q4FujumTDYfPoZRO1M\",\n                \"locations\": [\n                    {\n                        \"address\": \"Dr. M H Marigowda Road, 560029\",\n                        \"city\": \"Sadgunte Palya\",\n                        \"country\": \"India\",\n                        \"gps\": {\n                            \"lat\": 12.936420411478917,\n                            \"lng\": 77.60989134474262\n                        },\n                        \"state\": \"Karnataka\",\n                        \"tag\": \"Sadgunte Palya\"\n                    }\n                ]\n            }\n        }\n    }\n}"
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "bap-onest-lite-prod-url",
+			"value": "https://onest-lite-bap.dhiway.net",
+			"type": "string"
+		},
+		{
+			"key": "provider_id",
+			"value": "KPNS3wvoqzwQPLJDhU38RZkc11lJ8SJ9",
+			"type": "string"
+		},
+		{
+			"key": "job_id",
+			"value": "3d1817b0-c253-46ec-816c-068de10d0a22",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "X41CvvbKL8J05veORoj7ggSTT2Pbsabz",
+			"type": "string"
+		},
+		{
+			"key": "bap-onest-lite-demo-url",
+			"value": "https://onest-demo-lite-bap.dhiway.net",
+			"type": "string"
+		}
+	]
+}
