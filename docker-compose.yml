@@ -3,6 +3,7 @@ version: '3.8'
 services:
   bap-app:
     build: .
+    image: bap-onest-lite
     container_name: bap-onest-lite
     depends_on:
       redis:
