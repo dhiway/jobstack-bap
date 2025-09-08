@@ -27,7 +27,12 @@ pub struct RedisConfig {
 pub struct DbConfig {
     pub url: String,
 }
-
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CacheConfig {
+    pub result_ttl_secs: u64,
+    pub txn_ttl_secs: u64,
+    pub throttle_secs: u64,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     debug: bool,
@@ -35,6 +40,7 @@ pub struct AppConfig {
     pub http: HttpConfig,
     pub redis: RedisConfig,
     pub db: DbConfig,
+    pub cache: CacheConfig,
 }
 
 impl AppConfig {

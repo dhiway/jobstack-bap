@@ -36,3 +36,17 @@ db:
   # Postgres connection string
   # Format: postgres://<user>:<password>@<host>:<port>/<database>
   url: "postgres://db_user:db_pass@localhost:5432/db_name"
+cache:
+  # How long (in seconds) to keep BPP search responses in Redis.
+  # Example: 3600 = 1 hour
+  result_ttl_secs: 3600
+
+  # How long (in seconds) to keep txn_id → query_hash mapping in Redis.
+  # This ensures on_search can resolve txn_id back to the query.
+  # Example: 3600 = 1 hour
+  txn_ttl_secs: 3600
+
+  # Minimum interval (in seconds) between BAP search calls for the same query.
+  # Prevents hammering BAP; new calls only after this duration has passed.
+  # Example: 60 = 1 minutes
+  throttle_secs: 60

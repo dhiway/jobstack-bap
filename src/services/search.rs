@@ -9,7 +9,6 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use redis::AsyncCommands;
 use tracing::{error, info};
 use uuid::Uuid;
-
 pub async fn handle_search(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequest>,
@@ -22,6 +21,7 @@ pub async fn handle_search(
     let pattern = format!("search:{}:*", query_hash);
     info!("Looking for Redis keys with pattern: {}", pattern);
 
+    // --- Get cached search results ---
     let mut all_keys = {
         let mut conn = app_state.redis_conn.lock().await;
 
@@ -66,10 +66,11 @@ pub async fn handle_search(
         results
     };
 
+    // --- Cache txn_id -> query_hash for on_search mapping ---
     {
         let mut conn = app_state.redis_conn.lock().await;
         let txn_key = format!("txn_to_query:{}", txn_id);
-        conn.set_ex::<_, _, ()>(&txn_key, &query_hash, 300)
+        conn.set_ex::<_, _, ()>(&txn_key, &query_hash, app_state.config.cache.txn_ttl_secs)
             .await
             .map_err(|e| {
                 (
@@ -93,14 +94,51 @@ pub async fn handle_search(
         None,
     );
     let adapter_url = format!("{}/search", config.bap.caller_uri);
-    info!("Sending search request to BAP adapter at: {}", adapter_url);
 
-    tokio::spawn(async move {
-        if let Err(e) = post_json(&adapter_url, payload).await {
-            error!("❌ Failed to send search to BAP adapter: {}", e);
+    // --- Throttle BAP calls (dynamic skip time) ---
+    let should_call_bap = {
+        let mut conn = app_state.redis_conn.lock().await;
+        let last_call_key = format!("last_call:{}", query_hash);
+
+        match conn.exists::<_, bool>(&last_call_key).await {
+            Ok(exists) if exists => {
+                let secs = app_state.config.cache.throttle_secs;
+                if secs % 60 == 0 {
+                    info!(
+                        ": Skipping BAP call (already called within last {} min)",
+                        secs / 60
+                    );
+                } else {
+                    info!(
+                        ": Skipping BAP call (already called within last {} secs)",
+                        secs
+                    );
+                }
+                false
+            }
+            _ => {
+                let _: () = conn
+                    .set_ex(&last_call_key, "1", app_state.config.cache.throttle_secs)
+                    .await
+                    .unwrap_or_default();
+                true
+            }
         }
-    });
+    };
 
+    if should_call_bap {
+        info!(
+            ": Sending search request to BAP adapter at: {}",
+            adapter_url
+        );
+        tokio::spawn(async move {
+            if let Err(e) = post_json(&adapter_url, payload).await {
+                error!(":x: Failed to send search to BAP adapter: {}", e);
+            }
+        });
+    }
+
+    // --- Return cached results if available ---
     if !cached_results.is_empty() {
         return Ok(Json(serde_json::json!({
             "results": cached_results
@@ -124,7 +162,14 @@ pub async fn handle_on_search(
                 let redis_key = format!("search:{}:{}", query_hash, bpp_id);
                 match serde_json::to_string(payload) {
                     Ok(data) => {
-                        if let Err(e) = conn.set_ex::<_, _, ()>(&redis_key, data, 300).await {
+                        if let Err(e) = conn
+                            .set_ex::<_, _, ()>(
+                                &redis_key,
+                                data,
+                                app_state.config.cache.result_ttl_secs,
+                            )
+                            .await
+                        {
                             info!("❌ Failed to store in Redis: {:?}", e);
                         } else {
                             info!("✅ Stored response at key: {}", redis_key);

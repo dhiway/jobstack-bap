@@ -8,7 +8,6 @@ pub struct Skill {
     pub name: String,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Person {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -21,13 +20,11 @@ pub struct Person {
     pub skills: Option<Vec<Skill>>,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Customer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub person: Option<Person>,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Fulfillment {
@@ -35,12 +32,10 @@ pub struct Fulfillment {
     pub customer: Option<Customer>,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ItemDescriptor {
     pub name: String,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Item {
@@ -51,7 +46,6 @@ pub struct Item {
     pub tags: Option<Vec<Tag>>,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProviderDescriptor {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,7 +53,6 @@ pub struct ProviderDescriptor {
 
     pub name: String,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Provider {
@@ -69,7 +62,6 @@ pub struct Provider {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locations: Option<Vec<Location>>,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Intent {
