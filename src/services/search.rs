@@ -7,12 +7,14 @@ use crate::{
 };
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use redis::AsyncCommands;
-use tracing::{error, info};
+use std::time::Instant;
+use tracing::{error, event, info, Level};
 use uuid::Uuid;
 pub async fn handle_search(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let start = Instant::now();
     let message_id = format!("msg-{}", Uuid::new_v4());
     let txn_id = format!("txn-{}", Uuid::new_v4());
 
@@ -137,6 +139,17 @@ pub async fn handle_search(
             }
         });
     }
+
+    let elapsed = start.elapsed();
+    event!(
+        target: "perf",
+        Level::INFO,
+        transaction_id = %txn_id,
+        message_id = %message_id,
+        endpoint = "/api/v1/search",
+        duration_ms = %elapsed.as_millis(),
+        "API timing(search)"
+    );
 
     // --- Return cached results if available ---
     if !cached_results.is_empty() {

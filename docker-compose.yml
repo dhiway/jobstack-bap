@@ -12,6 +12,7 @@ services:
         condition: service_healthy
     volumes:
       - ./config:/app/config
+      - ./app/logs:/app/app/logs
     environment:
       APP_ENV: ${APP_ENV}
       DATABASE_URL: ${DATABASE_URL}
