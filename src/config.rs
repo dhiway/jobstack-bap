@@ -41,8 +41,18 @@ pub struct AppConfig {
     pub redis: RedisConfig,
     pub db: DbConfig,
     pub cache: CacheConfig,
+    pub cron: CronConfig,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JobSchedule {
+    pub seconds: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CronConfig {
+    pub fetch_jobs: JobSchedule,
+}
 impl AppConfig {
     pub fn new() -> Result<Self, ConfigError> {
         let args: Vec<String> = env::args().collect();

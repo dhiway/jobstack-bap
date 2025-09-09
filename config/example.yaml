@@ -1,3 +1,10 @@
+# ==========================
+# Example Configuration File
+# ==========================
+# Copy this file to config.yaml and update values as needed.
+# This file shows all supported configuration keys.
+
+
 # Enable or disable debug logging
 debug: true
 
@@ -50,3 +57,8 @@ cache:
   # Prevents hammering BAP; new calls only after this duration has passed.
   # Example: 60 = 1 minutes
   throttle_secs: 60
+
+# Cron jobs
+cron:
+  fetch_jobs:
+    seconds: 10
