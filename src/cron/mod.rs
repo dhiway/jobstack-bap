@@ -12,7 +12,7 @@ pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
         let state = state.clone();
         tokio::spawn(async move {
             tracing::info!("🚀 Server restarted, waiting 10 seconds before first fetch...");
-            sleep(Duration::from_secs(10)).await;
+            sleep(Duration::from_secs(5)).await;
 
             tracing::info!("📦 Running initial fetch_jobs cron...");
             fetch_jobs::run(state).await;
