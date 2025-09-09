@@ -286,8 +286,35 @@ pub async fn handle_cron_on_search(
                 next_page
             );
 
+            let mut intent = payload
+                .message
+                .get("intent")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+
+            intent["item"] = json!({
+                "tags": [
+                    {
+                        "descriptor": {
+                            "code": "status",
+                            "name": "Status"
+                        },
+                        "list": [
+                            {
+                                "descriptor": {
+                                    "code": "status",
+                                    "name": "Status"
+                                },
+                                "value": "open"
+                            }
+                        ]
+                    }
+                ]
+            });
+
+            // Build final message
             let message = json!({
-                "intent": payload.message.get("intent").cloned().unwrap_or_else(|| json!({})),
+                "intent": intent,
                 "pagination": {
                     "page": next_page,
                     "limit": limit
@@ -312,7 +339,7 @@ pub async fn handle_cron_on_search(
             if let Err(e) = post_json(&adapter_url, next_payload).await {
                 error!(
                     target: "cron",
-                    "❌ Failed to request next_page={} (txn_id={}): {}",
+                    "❌ Failed to request next_page = {} (txn_id={}): {}",
                     next_page,
                     txn_id,
                     e
@@ -320,7 +347,7 @@ pub async fn handle_cron_on_search(
             } else {
                 info!(
                     target: "cron",
-                    "📨 Successfully requested next_page={} for txn_id={}",
+                    "📨 Successfully requested next_page = {} for txn_id={}",
                     next_page,
                     txn_id
                 );

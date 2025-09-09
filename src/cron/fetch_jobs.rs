@@ -1,11 +1,10 @@
-use crate::{
-    models::search::{Intent, Options, Pagination, SearchMessage},
-    services::payload_generator::build_beckn_payload,
-    state::AppState,
-    utils::http_client::post_json,
-};
+use crate::models::core::{Descriptor, Tag, TagItem};
+use crate::models::search::{Intent, Item, Options, Pagination, SearchMessage};
+use crate::services::payload_generator::build_beckn_payload;
+use crate::state::AppState;
+use crate::utils::http_client::post_json;
+use chrono::Utc;
 use redis::AsyncCommands;
-use serde_json::json;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -14,14 +13,33 @@ pub async fn run(app_state: AppState) {
     info!(target: "cron", "║   🔄 Starting fetch jobs cron.             ║");
     info!(target: "cron", "╚════════════════════════════════════════════╝");
 
-    // ──────────────────────────────────────────────
-    // Prepare the initial search message with pagination and options
+    // ✅ Build intent with item + status tag
+    let item = Item {
+        descriptor: None,
+        tags: Some(vec![Tag {
+            descriptor: Descriptor {
+                code: "status".to_string(),
+                name: "Status".to_string(),
+            },
+            list: vec![TagItem {
+                descriptor: Descriptor {
+                    code: "status".to_string(),
+                    name: "Status".to_string(),
+                },
+                value: "open".to_string(),
+            }],
+        }]),
+    };
+
+    // Intent
+    let intent = Intent {
+        item: Some(item),
+        provider: None,
+        fulfillment: None,
+    };
+
     let message = SearchMessage {
-        intent: Intent {
-            item: None,
-            provider: None,
-            fulfillment: None,
-        },
+        intent,
         pagination: Some(Pagination {
             page: Some(1),
             limit: Some(1000),
@@ -29,13 +47,11 @@ pub async fn run(app_state: AppState) {
         options: Some(Options { breif: Some(false) }),
     };
 
-    // ──────────────────────────────────────────────
     // Generate unique IDs for this cron run
     let message_id = format!("msg-{}", Uuid::new_v4());
     let txn_id = format!("cron-{}", Uuid::new_v4());
 
-    // ──────────────────────────────────────────────
-    // Build the Beckn payload for the search request
+    // Build Beckn payload
     let payload = build_beckn_payload(
         &app_state.config,
         &txn_id,
@@ -45,21 +61,18 @@ pub async fn run(app_state: AppState) {
         None,
         None,
     );
+    info!("message:{:?}", message);
 
-    // ──────────────────────────────────────────────
     // Metadata to store in Redis for additional info
-    let metadata = json!({
+    let redis_key = format!("cron_txn:{}", txn_id);
+    let mut conn = app_state.redis_conn.lock().await;
+    let metadata = serde_json::json!({
         "source": "cron",
         "brief": false,
         "all_jobs": true,
-        "timestamp": chrono::Utc::now()
+        "timestamp": Utc::now()
     });
 
-    // Redis key for this specific cron transaction
-    let redis_key = format!("cron_txn:{}", txn_id);
-    let mut conn = app_state.redis_conn.lock().await;
-
-    // Store transaction metadata in Redis with TTL
     if let Err(e) = conn
         .set_ex::<_, _, ()>(
             &redis_key,
@@ -71,7 +84,6 @@ pub async fn run(app_state: AppState) {
         error!(target: "cron", "❌ Failed to store cron txn metadata: {:?}", e);
     }
 
-    // ──────────────────────────────────────────────
     // Update a separate key to always point to the latest cron transaction
     let latest_key = "cron_txn:latest";
     if let Err(e) = conn
@@ -83,8 +95,7 @@ pub async fn run(app_state: AppState) {
         info!(target: "cron", "✅ Updated latest cron transaction to {}", txn_id);
     }
 
-    // ──────────────────────────────────────────────
-    // Send the search request payload to the BAP adapter
+    // Send to BAP adapter
     let adapter_url = format!("{}/search", app_state.config.bap.caller_uri);
     if let Err(e) = post_json(&adapter_url, payload).await {
         error!(target: "cron", "❌ Failed to send search to BAP adapter: {}", e);
