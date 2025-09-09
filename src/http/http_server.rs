@@ -1,3 +1,4 @@
+use crate::cron::start_cron_jobs;
 use crate::{
     config::AppConfig,
     http::routes::create_routes,
@@ -50,6 +51,7 @@ pub async fn start_http_server(
         redis_conn: Arc::new(Mutex::new(redis_conn)),
         db_pool,
     };
+    let _scheduler = start_cron_jobs(app_state.clone()).await;
 
     let http_server = tokio::spawn(run_http_server(listener, shutdown_rx, app_state));
 
