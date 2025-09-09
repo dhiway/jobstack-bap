@@ -61,7 +61,6 @@ pub async fn run(app_state: AppState) {
         None,
         None,
     );
-    info!("message:{:?}", message);
 
     // Metadata to store in Redis for additional info
     let redis_key = format!("cron_txn:{}", txn_id);

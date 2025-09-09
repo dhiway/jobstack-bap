@@ -1,3 +1,4 @@
+use crate::models::search::SearchRequestV2;
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use crate::{
     models::search::SearchRequest,
@@ -7,7 +8,8 @@ use crate::{
 };
 use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
-use serde_json::json;
+use serde_json::{json, Value as JsonValue};
+use std::collections::HashSet;
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
@@ -365,4 +367,126 @@ pub async fn handle_cron_on_search(
             ack: Ack { status: "ACK" },
         },
     })
+}
+
+pub async fn handle_search_v2(
+    State(app_state): State<AppState>,
+    Json(req): Json<SearchRequestV2>,
+) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
+    let mut conn = app_state.redis_conn.lock().await;
+
+    // 1) get latest txn id
+    let latest_key = "cron_txn:latest";
+    let txn_id: String = match conn.get(latest_key).await {
+        Ok(Some(v)) => v,
+        _ => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "No latest txn_id found" })),
+            ));
+        }
+    };
+
+    // 2) find all keys for this txn
+    let pattern = format!("cron_jobs:{}:*", txn_id);
+    let mut keys: Vec<String> = conn.keys(&pattern).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Redis fetch failed: {:?}", e) })),
+        )
+    })?;
+    keys.sort();
+
+    // pagination params
+    let page = req.page.unwrap_or(1).max(1) as usize;
+    let limit = req.limit.unwrap_or(10).max(1) as usize;
+    let start = (page - 1) * limit;
+    let end = start + limit;
+
+    // dedupe set for item ids (or serialized item when id missing)
+    let mut seen_ids: HashSet<String> = HashSet::new();
+    let mut unique_count: usize = 0;
+
+    let mut results: Vec<JsonValue> = Vec::new();
+
+    // iterate each stored BPP payload
+    for key in keys {
+        if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
+            if let Ok(mut payload_json) = serde_json::from_str::<JsonValue>(&payload_str) {
+                // pointer to providers array
+                if let Some(providers_arr) = payload_json
+                    .pointer_mut("/message/catalog/providers")
+                    .and_then(|p| p.as_array_mut())
+                {
+                    let mut new_providers: Vec<JsonValue> = Vec::new();
+
+                    for provider in providers_arr.iter_mut() {
+                        // items inside provider
+                        if let Some(items_arr) =
+                            provider.get_mut("items").and_then(|i| i.as_array_mut())
+                        {
+                            let mut kept_items: Vec<JsonValue> = Vec::new();
+
+                            // iterate items in this provider but consider only unique items globally
+                            for item in items_arr.iter() {
+                                // derive unique key: prefer `id`, fallback to serialized item
+                                let id_key = item
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| {
+                                        // fallback stable serialization
+                                        serde_json::to_string(item).unwrap_or_default()
+                                    });
+
+                                if !seen_ids.contains(&id_key) {
+                                    // this is a new unique item
+                                    // if this unique index falls into requested page -> keep
+                                    if unique_count >= start && unique_count < end {
+                                        kept_items.push(item.clone());
+                                    }
+                                    seen_ids.insert(id_key);
+                                    unique_count += 1;
+                                }
+                                // if already seen, skip (dedupe)
+                            }
+
+                            // only include provider if it has any kept items for this page
+                            if !kept_items.is_empty() {
+                                provider["items"] = JsonValue::Array(kept_items);
+                                new_providers.push(provider.clone());
+                            }
+                        }
+                    }
+
+                    // replace providers array with filtered providers
+                    *providers_arr = new_providers;
+                }
+
+                // keep the whole payload only if it has providers remaining
+                let has_providers = payload_json
+                    .pointer("/message/catalog/providers")
+                    .and_then(|p| p.as_array())
+                    .map_or(false, |arr| !arr.is_empty());
+
+                if has_providers {
+                    results.push(payload_json);
+                }
+            } else {
+                error!("Failed to parse stored payload for key {}", key);
+            }
+        }
+    }
+
+    // Build and return response
+    let resp = json!({
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "totalCount": unique_count
+        },
+        "results": results
+    });
+
+    Ok(Json(resp))
 }
