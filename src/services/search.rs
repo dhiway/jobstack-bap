@@ -5,11 +5,13 @@ use crate::{
     state::AppState,
     utils::{hash::generate_query_hash, http_client::post_json},
 };
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
+use serde_json::json;
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
+
 pub async fn handle_search(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequest>,
@@ -165,7 +167,11 @@ pub async fn handle_on_search(
     app_state: &AppState,
     payload: &WebhookPayload,
     txn_id: &str,
-) -> impl IntoResponse {
+) -> Json<AckResponse> {
+    if txn_id.starts_with("cron-") {
+        return handle_cron_on_search(app_state, payload, txn_id).await;
+    }
+
     let mut conn = app_state.redis_conn.lock().await;
     let txn_key = format!("txn_to_query:{}", txn_id);
 
@@ -199,6 +205,131 @@ pub async fn handle_on_search(
         },
         Err(_) => {
             info!("❌ No query_hash found for txn_id = {}", txn_id);
+        }
+    }
+
+    Json(AckResponse {
+        message: AckStatus {
+            ack: Ack { status: "ACK" },
+        },
+    })
+}
+
+pub async fn handle_cron_on_search(
+    app_state: &AppState,
+    payload: &WebhookPayload,
+    txn_id: &str,
+) -> Json<AckResponse> {
+    info!(target: "cron", "📦 Handling cron on_search for txn_id={}", txn_id);
+
+    let mut conn = app_state.redis_conn.lock().await;
+
+    if let Some(bpp_id) = &payload.context.bpp_id {
+        let redis_key = format!("cron_jobs:{}:{}", txn_id, bpp_id);
+
+        // Try to get existing stored data
+        let mut store_data: serde_json::Value =
+            match conn.get::<_, Option<String>>(&redis_key).await {
+                Ok(Some(existing)) => serde_json::from_str(&existing)
+                    .unwrap_or_else(|_| serde_json::to_value(payload).unwrap()),
+                _ => serde_json::to_value(payload).unwrap(),
+            };
+
+        // Append providers array
+        if let Some(new_providers) = payload
+            .message
+            .get("catalog")
+            .and_then(|c| c.get("providers"))
+            .and_then(|p| p.as_array())
+        {
+            store_data
+                .pointer_mut("/message/catalog/providers")
+                .and_then(|existing_providers| existing_providers.as_array_mut())
+                .map(|arr| arr.extend(new_providers.clone()));
+        }
+
+        // Store back to Redis with TTL
+        let ttl_secs = app_state.config.cache.result_ttl_secs;
+        if let Err(e) = conn
+            .set_ex::<_, String, ()>(&redis_key, store_data.to_string(), ttl_secs)
+            .await
+        {
+            error!(target: "cron", "❌ Failed to store cron payload for BPP {}: {:?}", bpp_id, e);
+        } else {
+            info!(target: "cron", "✅ Stored cron payload for BPP {} at {}", bpp_id, redis_key);
+        }
+    } else {
+        info!(target: "cron", "⚠️ No bpp_id found in cron payload, skipping storage");
+    }
+
+    // 👉 Handle pagination: request next page if needed
+    if let Some(pagination) = payload.message.get("pagination") {
+        let current_page = pagination.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
+        let limit = pagination
+            .get("limit")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(30);
+        let total_count = pagination
+            .get("totalCount")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+
+        if current_page * limit < total_count {
+            let next_page = current_page + 1;
+
+            info!(
+                target: "cron",
+                "🔄 More pages to fetch: current_page = {} total_count = {} → requesting next_page = {}",
+                current_page,
+                total_count,
+                next_page
+            );
+
+            let message = json!({
+                "intent": payload.message.get("intent").cloned().unwrap_or_else(|| json!({})),
+                "pagination": {
+                    "page": next_page,
+                    "limit": limit
+                },
+                "options": {
+                    "brief": false
+                }
+            });
+
+            let message_id = format!("msg-{}", Uuid::new_v4());
+            let next_payload = build_beckn_payload(
+                &app_state.config,
+                txn_id,
+                &message_id,
+                &message,
+                "search",
+                None,
+                None,
+            );
+
+            let adapter_url = format!("{}/search", app_state.config.bap.caller_uri);
+            if let Err(e) = post_json(&adapter_url, next_payload).await {
+                error!(
+                    target: "cron",
+                    "❌ Failed to request next_page={} (txn_id={}): {}",
+                    next_page,
+                    txn_id,
+                    e
+                );
+            } else {
+                info!(
+                    target: "cron",
+                    "📨 Successfully requested next_page={} for txn_id={}",
+                    next_page,
+                    txn_id
+                );
+            }
+        } else {
+            info!(target: "cron", "✅ All pages fetched for txn_id={}", txn_id);
+            info!(target: "cron", "╔════════════════════════════════════════════╗");
+            info!(target: "cron", "║   ✅ Finished fetch jobs cron.             ║");
+            info!(target: "cron", "╚════════════════════════════════════════════╝");
         }
     }
 

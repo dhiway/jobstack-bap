@@ -24,3 +24,4 @@ dashmap = "6.1.0"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
 tower-http = { version = "0.5", features = ["cors"] }
 tokio-cron-scheduler = "0.14.0"
+chrono-tz = "0.10.4"

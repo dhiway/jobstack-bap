@@ -79,6 +79,7 @@ pub struct Intent {
 pub struct SearchMessage {
     pub intent: Intent,
     pub pagination: Option<Pagination>,
+    pub options: Option<Options>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -90,4 +91,9 @@ pub struct SearchRequest {
 pub struct Pagination {
     pub page: Option<u32>,
     pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Options {
+    pub breif: Option<bool>,
 }
