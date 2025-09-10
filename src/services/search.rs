@@ -372,13 +372,13 @@ pub async fn handle_cron_on_search(
 pub async fn handle_search_v2(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequestV2>,
-) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let mut conn = app_state.redis_conn.lock().await;
 
-    // 1) get latest txn id
+    // 👉 Get latest txn_id
     let latest_key = "cron_txn:latest";
     let txn_id: String = match conn.get(latest_key).await {
-        Ok(Some(v)) => v,
+        Ok(Some(val)) => val,
         _ => {
             return Err((
                 StatusCode::NOT_FOUND,
@@ -387,106 +387,131 @@ pub async fn handle_search_v2(
         }
     };
 
-    // 2) find all keys for this txn
+    // Fetch all BPP results for this txn_id
     let pattern = format!("cron_jobs:{}:*", txn_id);
-    let mut keys: Vec<String> = conn.keys(&pattern).await.map_err(|e| {
+    let keys: Vec<String> = conn.keys(&pattern).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": format!("Redis fetch failed: {:?}", e) })),
         )
     })?;
-    keys.sort();
 
-    // pagination params
-    let page = req.page.unwrap_or(1).max(1) as usize;
-    let limit = req.limit.unwrap_or(10).max(1) as usize;
-    let start = (page - 1) * limit;
-    let end = start + limit;
+    let page = req.page.unwrap_or(1) as usize;
+    let limit = req.limit.unwrap_or(10) as usize;
 
-    // dedupe set for item ids (or serialized item when id missing)
-    let mut seen_ids: HashSet<String> = HashSet::new();
-    let mut unique_count: usize = 0;
+    let mut results = vec![];
+    let mut unique_count = 0;
+    let mut seen_ids = HashSet::new();
 
-    let mut results: Vec<JsonValue> = Vec::new();
+    // Normalize filters
+    let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
+    let role_filter = req.role.as_ref().map(|s| s.to_lowercase());
+    let query_filter = req.query.as_ref().map(|s| s.to_lowercase());
 
-    // iterate each stored BPP payload
     for key in keys {
         if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
             if let Ok(mut payload_json) = serde_json::from_str::<JsonValue>(&payload_str) {
-                // pointer to providers array
-                if let Some(providers_arr) = payload_json
-                    .pointer_mut("/message/catalog/providers")
-                    .and_then(|p| p.as_array_mut())
+                let mut filtered_providers = vec![];
+
+                if let Some(providers) = payload_json
+                    .pointer("/message/catalog/providers")
+                    .and_then(|p| p.as_array())
                 {
-                    let mut new_providers: Vec<JsonValue> = Vec::new();
+                    for provider in providers {
+                        let mut provider_clone = provider.clone();
 
-                    for provider in providers_arr.iter_mut() {
-                        // items inside provider
-                        if let Some(items_arr) =
-                            provider.get_mut("items").and_then(|i| i.as_array_mut())
-                        {
-                            let mut kept_items: Vec<JsonValue> = Vec::new();
+                        let provider_name = provider
+                            .get("descriptor")
+                            .and_then(|d| d.get("name"))
+                            .and_then(|n| n.as_str())
+                            .unwrap_or("")
+                            .to_lowercase();
 
-                            // iterate items in this provider but consider only unique items globally
-                            for item in items_arr.iter() {
-                                // derive unique key: prefer `id`, fallback to serialized item
-                                let id_key = item
-                                    .get("id")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string())
-                                    .unwrap_or_else(|| {
-                                        // fallback stable serialization
-                                        serde_json::to_string(item).unwrap_or_default()
-                                    });
+                        // Apply provider filter
+                        if let Some(ref pf) = provider_filter {
+                            if !provider_name.contains(pf) {
+                                continue;
+                            }
+                        }
 
-                                if !seen_ids.contains(&id_key) {
-                                    // this is a new unique item
-                                    // if this unique index falls into requested page -> keep
-                                    if unique_count >= start && unique_count < end {
-                                        kept_items.push(item.clone());
+                        // Filter items under provider
+                        if let Some(items) = provider.get("items").and_then(|i| i.as_array()) {
+                            let mut filtered_items = vec![];
+
+                            for item in items {
+                                let role_name = item
+                                    .get("descriptor")
+                                    .and_then(|d| d.get("name"))
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("")
+                                    .to_lowercase();
+
+                                let mut match_item = true;
+
+                                // role filter
+                                if let Some(ref rf) = role_filter {
+                                    if !role_name.contains(rf) {
+                                        match_item = false;
                                     }
-                                    seen_ids.insert(id_key);
-                                    unique_count += 1;
                                 }
-                                // if already seen, skip (dedupe)
+
+                                // query filter (matches provider OR role)
+                                if let Some(ref qf) = query_filter {
+                                    if !(provider_name.contains(qf) || role_name.contains(qf)) {
+                                        match_item = false;
+                                    }
+                                }
+
+                                if match_item {
+                                    let id_key = item
+                                        .get("id")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| {
+                                            serde_json::to_string(item).unwrap_or_default()
+                                        });
+
+                                    if !seen_ids.contains(&id_key) {
+                                        seen_ids.insert(id_key);
+                                        unique_count += 1;
+                                        filtered_items.push(item.clone());
+                                    }
+                                }
                             }
 
-                            // only include provider if it has any kept items for this page
-                            if !kept_items.is_empty() {
-                                provider["items"] = JsonValue::Array(kept_items);
-                                new_providers.push(provider.clone());
+                            if !filtered_items.is_empty() {
+                                provider_clone["items"] = json!(filtered_items);
+                                filtered_providers.push(provider_clone);
                             }
                         }
                     }
-
-                    // replace providers array with filtered providers
-                    *providers_arr = new_providers;
                 }
 
-                // keep the whole payload only if it has providers remaining
-                let has_providers = payload_json
-                    .pointer("/message/catalog/providers")
-                    .and_then(|p| p.as_array())
-                    .map_or(false, |arr| !arr.is_empty());
-
-                if has_providers {
+                if !filtered_providers.is_empty() {
+                    payload_json["message"]["catalog"]["providers"] = json!(filtered_providers);
                     results.push(payload_json);
                 }
-            } else {
-                error!("Failed to parse stored payload for key {}", key);
             }
         }
     }
 
-    // Build and return response
-    let resp = json!({
+    // Pagination on unique results
+    let start = ((page - 1) * limit) as usize;
+    let end = start + limit as usize;
+    let paginated_results = results
+        .into_iter()
+        .skip(start)
+        .take(limit)
+        .collect::<Vec<_>>();
+
+    let response = json!({
         "pagination": {
             "page": page,
             "limit": limit,
-            "totalCount": unique_count
+            "totalCount": unique_count.to_string()
         },
-        "results": results
+        "results": paginated_results
     });
 
-    Ok(Json(resp))
+    Ok(Json(response))
 }
