@@ -85,10 +85,7 @@ pub async fn run(app_state: AppState) {
 
     // Update a separate key to always point to the latest cron transaction
     let latest_key = "cron_txn:latest";
-    if let Err(e) = conn
-        .set_ex::<_, _, ()>(latest_key, &txn_id, app_state.config.cache.txn_ttl_secs)
-        .await
-    {
+    if let Err(e) = conn.set::<_, _, ()>(latest_key, &txn_id).await {
         error!(target: "cron", "❌ Failed to store latest cron txn_id: {:?}", e);
     } else {
         info!(target: "cron", "✅ Updated latest cron transaction to {}", txn_id);
