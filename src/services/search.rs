@@ -403,9 +403,13 @@ pub async fn handle_search_v2(
     let mut unique_count = 0;
     let mut seen_ids = HashSet::new();
 
-    // Normalize filters
     let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
-    let role_filter = req.role.as_ref().map(|s| s.to_lowercase());
+    // Split roles by comma and lowercase them
+    let role_filters: Vec<String> = req
+        .role
+        .as_ref()
+        .map(|r| r.split(',').map(|s| s.trim().to_lowercase()).collect())
+        .unwrap_or_default();
     let query_filter = req.query.as_ref().map(|s| s.to_lowercase());
 
     for key in keys {
@@ -446,18 +450,27 @@ pub async fn handle_search_v2(
                                     .unwrap_or("")
                                     .to_lowercase();
 
+                                // Split roles by comma for each item
+                                let item_roles: Vec<&str> =
+                                    role_name.split(',').map(|s| s.trim()).collect();
+
                                 let mut match_item = true;
 
                                 // role filter
-                                if let Some(ref rf) = role_filter {
-                                    if !role_name.contains(rf) {
+                                if !role_filters.is_empty() {
+                                    if !role_filters
+                                        .iter()
+                                        .any(|rf| item_roles.iter().any(|r| r.contains(rf)))
+                                    {
                                         match_item = false;
                                     }
                                 }
 
                                 // query filter (matches provider OR role)
                                 if let Some(ref qf) = query_filter {
-                                    if !(provider_name.contains(qf) || role_name.contains(qf)) {
+                                    if !(provider_name.contains(qf)
+                                        || item_roles.iter().any(|r| r.contains(qf)))
+                                    {
                                         match_item = false;
                                     }
                                 }
@@ -497,7 +510,7 @@ pub async fn handle_search_v2(
 
     // Pagination on unique results
     let start = ((page - 1) * limit) as usize;
-    let end = start + limit as usize;
+    let end = std::cmp::min(start + limit, results.len());
     let paginated_results = results
         .into_iter()
         .skip(start)
