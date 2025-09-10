@@ -86,6 +86,14 @@ pub struct SearchMessage {
 pub struct SearchRequest {
     pub message: SearchMessage,
 }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SearchRequestV2 {
+    pub provider: Option<String>,
+    pub role: Option<String>,
+    pub query: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Pagination {

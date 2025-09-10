@@ -1,3 +1,4 @@
+use crate::models::search::SearchRequestV2;
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use crate::{
     models::search::SearchRequest,
@@ -7,7 +8,8 @@ use crate::{
 };
 use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
-use serde_json::json;
+use serde_json::{json, Value as JsonValue};
+use std::collections::HashSet;
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
@@ -365,4 +367,164 @@ pub async fn handle_cron_on_search(
             ack: Ack { status: "ACK" },
         },
     })
+}
+
+pub async fn handle_search_v2(
+    State(app_state): State<AppState>,
+    Json(req): Json<SearchRequestV2>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let mut conn = app_state.redis_conn.lock().await;
+
+    // 👉 Get latest txn_id
+    let latest_key = "cron_txn:latest";
+    let txn_id: String = match conn.get(latest_key).await {
+        Ok(Some(val)) => val,
+        _ => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "No latest txn_id found" })),
+            ));
+        }
+    };
+
+    // Fetch all BPP results for this txn_id
+    let pattern = format!("cron_jobs:{}:*", txn_id);
+    let keys: Vec<String> = conn.keys(&pattern).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Redis fetch failed: {:?}", e) })),
+        )
+    })?;
+
+    let page = req.page.unwrap_or(1) as usize;
+    let limit = req.limit.unwrap_or(10) as usize;
+
+    let mut results = vec![];
+    let mut unique_count = 0;
+    let mut seen_ids = HashSet::new();
+
+    let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
+    // Split roles by comma and lowercase them
+    let role_filters: Vec<String> = req
+        .role
+        .as_ref()
+        .map(|r| r.split(',').map(|s| s.trim().to_lowercase()).collect())
+        .unwrap_or_default();
+    let query_filter = req.query.as_ref().map(|s| s.to_lowercase());
+
+    for key in keys {
+        if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
+            if let Ok(mut payload_json) = serde_json::from_str::<JsonValue>(&payload_str) {
+                let mut filtered_providers = vec![];
+
+                if let Some(providers) = payload_json
+                    .pointer("/message/catalog/providers")
+                    .and_then(|p| p.as_array())
+                {
+                    for provider in providers {
+                        let mut provider_clone = provider.clone();
+
+                        let provider_name = provider
+                            .get("descriptor")
+                            .and_then(|d| d.get("name"))
+                            .and_then(|n| n.as_str())
+                            .unwrap_or("")
+                            .to_lowercase();
+
+                        // Apply provider filter
+                        if let Some(ref pf) = provider_filter {
+                            if !provider_name.contains(pf) {
+                                continue;
+                            }
+                        }
+
+                        // Filter items under provider
+                        if let Some(items) = provider.get("items").and_then(|i| i.as_array()) {
+                            let mut filtered_items = vec![];
+
+                            for item in items {
+                                let role_name = item
+                                    .get("descriptor")
+                                    .and_then(|d| d.get("name"))
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("")
+                                    .to_lowercase();
+
+                                // Split roles by comma for each item
+                                let item_roles: Vec<&str> =
+                                    role_name.split(',').map(|s| s.trim()).collect();
+
+                                let mut match_item = true;
+
+                                // role filter
+                                if !role_filters.is_empty() {
+                                    if !role_filters
+                                        .iter()
+                                        .any(|rf| item_roles.iter().any(|r| r.contains(rf)))
+                                    {
+                                        match_item = false;
+                                    }
+                                }
+
+                                // query filter (matches provider OR role)
+                                if let Some(ref qf) = query_filter {
+                                    if !(provider_name.contains(qf)
+                                        || item_roles.iter().any(|r| r.contains(qf)))
+                                    {
+                                        match_item = false;
+                                    }
+                                }
+
+                                if match_item {
+                                    let id_key = item
+                                        .get("id")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_else(|| {
+                                            serde_json::to_string(item).unwrap_or_default()
+                                        });
+
+                                    if !seen_ids.contains(&id_key) {
+                                        seen_ids.insert(id_key);
+                                        unique_count += 1;
+                                        filtered_items.push(item.clone());
+                                    }
+                                }
+                            }
+
+                            if !filtered_items.is_empty() {
+                                provider_clone["items"] = json!(filtered_items);
+                                filtered_providers.push(provider_clone);
+                            }
+                        }
+                    }
+                }
+
+                if !filtered_providers.is_empty() {
+                    payload_json["message"]["catalog"]["providers"] = json!(filtered_providers);
+                    results.push(payload_json);
+                }
+            }
+        }
+    }
+
+    // Pagination on unique results
+    let start = ((page - 1) * limit) as usize;
+    let end = std::cmp::min(start + limit, results.len());
+    let paginated_results = results
+        .into_iter()
+        .skip(start)
+        .take(limit)
+        .collect::<Vec<_>>();
+
+    let response = json!({
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "totalCount": unique_count.to_string()
+        },
+        "results": paginated_results
+    });
+
+    Ok(Json(response))
 }
