@@ -4,7 +4,7 @@ use crate::{
     models::search::SearchRequest,
     services::payload_generator::build_beckn_payload,
     state::AppState,
-    utils::{hash::generate_query_hash, http_client::post_json},
+    utils::{hash::generate_query_hash, http_client::post_json, search::matches_query_dynamic},
 };
 use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
@@ -404,7 +404,6 @@ pub async fn handle_search_v2(
     let mut seen_ids = HashSet::new();
 
     let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
-    // Split roles by comma and lowercase them
     let role_filters: Vec<String> = req
         .role
         .as_ref()
@@ -466,11 +465,9 @@ pub async fn handle_search_v2(
                                     }
                                 }
 
-                                // query filter (matches provider OR role)
+                                // query filter (dynamic match in multiple places)
                                 if let Some(ref qf) = query_filter {
-                                    if !(provider_name.contains(qf)
-                                        || item_roles.iter().any(|r| r.contains(qf)))
-                                    {
+                                    if !matches_query_dynamic(&provider_name, item, qf) {
                                         match_item = false;
                                     }
                                 }
@@ -510,7 +507,6 @@ pub async fn handle_search_v2(
 
     // Pagination on unique results
     let start = ((page - 1) * limit) as usize;
-    let end = std::cmp::min(start + limit, results.len());
     let paginated_results = results
         .into_iter()
         .skip(start)
