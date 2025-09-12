@@ -612,7 +612,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"limit\": 20,\n    \"page\": 1,\n    // \"provider\":\"O1\",\n    \"role\":\"Fitter , Electrician\"\n\n}",
+									"raw": "{\n  \"limit\": 20,\n    \"page\": 1\n    // ,\"provider\":\"O1\"\n//    , \"role\":\"Fitter , Electrician\"\n,\"query\":\"Fitter\"\n}\n",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -620,9 +620,9 @@
 									}
 								},
 								"url": {
-									"raw": "{{bap-onest-lite-prod-url}}/api/v2/search",
+									"raw": "{{bap-onest-lite-demo-url}}/api/v2/search",
 									"host": [
-										"{{bap-onest-lite-prod-url}}"
+										"{{bap-onest-lite-demo-url}}"
 									],
 									"path": [
 										"api",
@@ -660,7 +660,7 @@
 									},
 									"status": "OK",
 									"code": 200,
-									"_postman_previewlanguage": "",
+									"_postman_previewlanguage": null,
 									"header": [
 										{
 											"key": "content-type",
