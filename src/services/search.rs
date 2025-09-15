@@ -9,7 +9,7 @@ use crate::{
 use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
 use serde_json::{json, Value as JsonValue};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
@@ -372,7 +372,7 @@ pub async fn handle_cron_on_search(
 pub async fn handle_search_v2(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequestV2>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
     let mut conn = app_state.redis_conn.lock().await;
 
     // 👉 Get latest txn_id
@@ -399,9 +399,8 @@ pub async fn handle_search_v2(
     let page = req.page.unwrap_or(1) as usize;
     let limit = req.limit.unwrap_or(10) as usize;
 
-    let mut results = vec![];
-    let mut unique_count = 0;
     let mut seen_ids = HashSet::new();
+    let mut flat_items = vec![];
 
     let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
     let role_filters: Vec<String> = req
@@ -411,18 +410,15 @@ pub async fn handle_search_v2(
         .unwrap_or_default();
     let query_filter = req.query.as_ref().map(|s| s.to_lowercase());
 
+    // Collect flat list of items
     for key in keys {
         if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
-            if let Ok(mut payload_json) = serde_json::from_str::<JsonValue>(&payload_str) {
-                let mut filtered_providers = vec![];
-
+            if let Ok(payload_json) = serde_json::from_str::<JsonValue>(&payload_str) {
                 if let Some(providers) = payload_json
                     .pointer("/message/catalog/providers")
                     .and_then(|p| p.as_array())
                 {
                     for provider in providers {
-                        let mut provider_clone = provider.clone();
-
                         let provider_name = provider
                             .get("descriptor")
                             .and_then(|d| d.get("name"))
@@ -430,17 +426,14 @@ pub async fn handle_search_v2(
                             .unwrap_or("")
                             .to_lowercase();
 
-                        // Apply provider filter
+                        // provider filter
                         if let Some(ref pf) = provider_filter {
                             if !provider_name.contains(pf) {
                                 continue;
                             }
                         }
 
-                        // Filter items under provider
                         if let Some(items) = provider.get("items").and_then(|i| i.as_array()) {
-                            let mut filtered_items = vec![];
-
                             for item in items {
                                 let role_name = item
                                     .get("descriptor")
@@ -449,7 +442,6 @@ pub async fn handle_search_v2(
                                     .unwrap_or("")
                                     .to_lowercase();
 
-                                // Split roles by comma for each item
                                 let item_roles: Vec<&str> =
                                     role_name.split(',').map(|s| s.trim()).collect();
 
@@ -465,7 +457,7 @@ pub async fn handle_search_v2(
                                     }
                                 }
 
-                                // query filter (dynamic match in multiple places)
+                                // query filter
                                 if let Some(ref qf) = query_filter {
                                     if !matches_query_dynamic(&provider_name, item, qf) {
                                         match_item = false;
@@ -481,45 +473,79 @@ pub async fn handle_search_v2(
                                             serde_json::to_string(item).unwrap_or_default()
                                         });
 
-                                    if !seen_ids.contains(&id_key) {
-                                        seen_ids.insert(id_key);
-                                        unique_count += 1;
-                                        filtered_items.push(item.clone());
+                                    if seen_ids.insert(id_key) {
+                                        flat_items.push((
+                                            payload_json["context"].clone(),
+                                            provider.clone(),
+                                            item.clone(),
+                                        ));
                                     }
                                 }
                             }
-
-                            if !filtered_items.is_empty() {
-                                provider_clone["items"] = json!(filtered_items);
-                                filtered_providers.push(provider_clone);
-                            }
                         }
                     }
-                }
-
-                if !filtered_providers.is_empty() {
-                    payload_json["message"]["catalog"]["providers"] = json!(filtered_providers);
-                    results.push(payload_json);
                 }
             }
         }
     }
 
-    // Pagination on unique results
-    let start = ((page - 1) * limit) as usize;
-    let paginated_results = results
+    let total_count = flat_items.len();
+
+    // Apply pagination
+    let start = (page - 1) * limit;
+    let paginated_items = flat_items
         .into_iter()
         .skip(start)
         .take(limit)
         .collect::<Vec<_>>();
 
+    //  Group back into payload → providers → items
+    let mut results_map: HashMap<JsonValue, HashMap<JsonValue, Vec<JsonValue>>> = HashMap::new();
+
+    for (context, provider, item) in paginated_items {
+        let provider_descriptor = provider["descriptor"].clone();
+
+        results_map
+            .entry(context.clone())
+            .or_default()
+            .entry(provider_descriptor)
+            .or_default()
+            .push(item);
+    }
+
+    let mut results = vec![];
+
+    for (context, providers_map) in results_map {
+        let mut payload = json!({
+            "context": context,
+            "message": {
+                "catalog": {
+                    "providers": []
+                }
+            }
+        });
+
+        let providers_arr = providers_map
+            .into_iter()
+            .map(|(descriptor, items)| {
+                json!({
+                    "descriptor": descriptor,
+                    "items": items
+                })
+            })
+            .collect::<Vec<_>>();
+
+        payload["message"]["catalog"]["providers"] = json!(providers_arr);
+        results.push(payload);
+    }
+
     let response = json!({
         "pagination": {
             "page": page,
             "limit": limit,
-            "totalCount": unique_count.to_string()
+            "totalCount": total_count
         },
-        "results": paginated_results
+        "results": results
     });
 
     Ok(Json(response))
