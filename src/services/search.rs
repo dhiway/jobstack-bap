@@ -410,7 +410,7 @@ pub async fn handle_search_v2(
         .unwrap_or_default();
     let query_filter = req.query.as_ref().map(|s| s.to_lowercase());
 
-    // STEP 1: Collect flat list of items
+    // Collect flat list of items
     for key in keys {
         if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
             if let Ok(payload_json) = serde_json::from_str::<JsonValue>(&payload_str) {
@@ -491,7 +491,7 @@ pub async fn handle_search_v2(
 
     let total_count = flat_items.len();
 
-    // STEP 2: Apply pagination
+    // Apply pagination
     let start = (page - 1) * limit;
     let paginated_items = flat_items
         .into_iter()
@@ -499,7 +499,7 @@ pub async fn handle_search_v2(
         .take(limit)
         .collect::<Vec<_>>();
 
-    // STEP 3: Group back into payload → providers → items
+    //  Group back into payload → providers → items
     let mut results_map: HashMap<JsonValue, HashMap<JsonValue, Vec<JsonValue>>> = HashMap::new();
 
     for (context, provider, item) in paginated_items {
