@@ -7,9 +7,10 @@ use crate::{
     utils::{hash::generate_query_hash, http_client::post_json, search::matches_query_dynamic},
 };
 use axum::{extract::State, http::StatusCode, Json};
+use indexmap::IndexMap;
 use redis::AsyncCommands;
 use serde_json::{json, Value as JsonValue};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
@@ -500,7 +501,7 @@ pub async fn handle_search_v2(
         .collect::<Vec<_>>();
 
     //  Group back into payload → providers → items
-    let mut results_map: HashMap<JsonValue, HashMap<JsonValue, Vec<JsonValue>>> = HashMap::new();
+    let mut results_map: IndexMap<JsonValue, IndexMap<JsonValue, Vec<JsonValue>>> = IndexMap::new();
 
     for (context, provider, item) in paginated_items {
         let provider_descriptor = provider["descriptor"].clone();
