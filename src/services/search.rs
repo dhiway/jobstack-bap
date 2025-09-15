@@ -501,17 +501,33 @@ pub async fn handle_search_v2(
         .collect::<Vec<_>>();
 
     //  Group back into payload → providers → items
-    let mut results_map: IndexMap<JsonValue, IndexMap<JsonValue, Vec<JsonValue>>> = IndexMap::new();
+    let mut results_map: IndexMap<JsonValue, IndexMap<String, (JsonValue, Vec<JsonValue>)>> =
+        IndexMap::new();
 
     for (context, provider, item) in paginated_items {
         let provider_descriptor = provider["descriptor"].clone();
+        let provider_id = provider.get("id").cloned().unwrap_or(json!(null));
+        let provider_fulfillments = provider.get("fulfillments").cloned().unwrap_or(json!([]));
+        let provider_locations = provider.get("locations").cloned().unwrap_or(json!([]));
+
+        let key = serde_json::to_string(&provider_descriptor).unwrap_or_default();
 
         results_map
             .entry(context.clone())
             .or_default()
-            .entry(provider_descriptor)
-            .or_default()
-            .push(item);
+            .entry(key)
+            .and_modify(|(_, items)| items.push(item.clone()))
+            .or_insert_with(|| {
+                (
+                    json!({
+                        "descriptor": provider_descriptor,
+                        "id": provider_id,
+                        "fulfillments": provider_fulfillments,
+                        "locations": provider_locations,
+                    }),
+                    vec![item.clone()],
+                )
+            });
     }
 
     let mut results = vec![];
@@ -528,11 +544,9 @@ pub async fn handle_search_v2(
 
         let providers_arr = providers_map
             .into_iter()
-            .map(|(descriptor, items)| {
-                json!({
-                    "descriptor": descriptor,
-                    "items": items
-                })
+            .map(|(_, (mut provider_obj, items))| {
+                provider_obj["items"] = json!(items);
+                provider_obj
             })
             .collect::<Vec<_>>();
 
