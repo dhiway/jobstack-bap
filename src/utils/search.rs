@@ -7,7 +7,6 @@ pub fn matches_query_dynamic(provider_name: &str, item: &JsonValue, qf: &str) ->
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect();
-
     for q in queries {
         if provider_name.to_lowercase().contains(&q) {
             return true;
@@ -62,6 +61,13 @@ pub fn matches_query_dynamic(provider_name: &str, item: &JsonValue, qf: &str) ->
 
         // tags.jobProviderLocation
         if let Some(loc) = item.pointer("/tags/jobProviderLocation") {
+            if loc.to_string().to_lowercase().contains(&q) {
+                return true;
+            }
+        }
+
+        // tags.basicInfo.jobProviderName
+        if let Some(loc) = item.pointer("/tags/basicInfo/jobProviderName") {
             if loc.to_string().to_lowercase().contains(&q) {
                 return true;
             }
