@@ -230,7 +230,7 @@ pub async fn handle_cron_on_search(
     if let Some(bpp_id) = &payload.context.bpp_id {
         let redis_key = format!("cron_jobs:{}:{}", txn_id, bpp_id);
 
-        // Try to get existing stored data
+        // Try to get existing stored data from Redis
         let mut store_data: serde_json::Value =
             match conn.get::<_, Option<String>>(&redis_key).await {
                 Ok(Some(existing)) => serde_json::from_str(&existing)
@@ -238,7 +238,7 @@ pub async fn handle_cron_on_search(
                 _ => serde_json::to_value(payload).unwrap(),
             };
 
-        // Append providers array
+        // Append new providers to existing ones
         if let Some(new_providers) = payload
             .message
             .get("catalog")
@@ -251,6 +251,42 @@ pub async fn handle_cron_on_search(
                 .map(|arr| arr.extend(new_providers.clone()));
         }
 
+        // Get pagination info from stored data
+        let (current_page, limit, total_count) = {
+            let pagination = store_data
+                .pointer("/message/pagination")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+
+            let page = pagination.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
+            let limit = pagination
+                .get("limit")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(30);
+            let total_count = pagination
+                .get("totalCount")
+                .and_then(|v| {
+                    if let Some(n) = v.as_i64() {
+                        Some(n)
+                    } else if let Some(s) = v.as_str() {
+                        s.parse::<i64>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+
+            (page, limit, total_count)
+        };
+        info!(
+            target: "cron",
+            "📄 Pagination status for BPP {}: current_page = {} limit = {} total_count = {}",
+            bpp_id,
+            current_page,
+            limit,
+            total_count
+        );
+
         // Store back to Redis with TTL
         let ttl_secs = app_state.config.cache.result_ttl_secs;
         if let Err(e) = conn
@@ -261,26 +297,10 @@ pub async fn handle_cron_on_search(
         } else {
             info!(target: "cron", "✅ Stored cron payload for BPP {} at {}", bpp_id, redis_key);
         }
-    } else {
-        info!(target: "cron", "⚠️ No bpp_id found in cron payload, skipping storage");
-    }
 
-    // 👉 Handle pagination: request next page if needed
-    if let Some(pagination) = payload.message.get("pagination") {
-        let current_page = pagination.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
-        let limit = pagination
-            .get("limit")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(30);
-        let total_count = pagination
-            .get("totalCount")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-
+        // Handle pagination: request next page if needed
         if current_page * limit < total_count {
             let next_page = current_page + 1;
-
             info!(
                 target: "cron",
                 "🔄 More pages to fetch: current_page = {} total_count = {} → requesting next_page = {}",
@@ -289,6 +309,7 @@ pub async fn handle_cron_on_search(
                 next_page
             );
 
+            // Build intent for next page
             let mut intent = payload
                 .message
                 .get("intent")
@@ -298,23 +319,16 @@ pub async fn handle_cron_on_search(
             intent["item"] = json!({
                 "tags": [
                     {
-                        "descriptor": {
-                            "code": "status",
-                            "name": "Status"
-                        },
+                        "descriptor": { "code": "status", "name": "Status" },
                         "list": [
                             {
-                                "descriptor": {
-                                    "code": "status",
-                                    "name": "Status"
-                                },
+                                "descriptor": { "code": "status", "name": "Status" },
                                 "value": "open"
                             }
                         ]
                     }
                 ]
             });
-
             // Build final message
             let message = json!({
                 "intent": intent,
@@ -326,6 +340,18 @@ pub async fn handle_cron_on_search(
                     "brief": false
                 }
             });
+
+            // Update Redis with next_page prevent duplicate calls
+            store_data.pointer_mut("/message/pagination").map(|p| {
+                p["page"] = json!(next_page);
+            });
+
+            if let Err(e) = conn
+                .set_ex::<_, String, ()>(&redis_key, store_data.to_string(), ttl_secs)
+                .await
+            {
+                error!(target: "cron", "❌ Failed to update next_page in Redis: {:?}", e);
+            }
 
             let message_id = format!("msg-{}", Uuid::new_v4());
             let next_payload = build_beckn_payload(
@@ -361,6 +387,8 @@ pub async fn handle_cron_on_search(
             info!(target: "cron", "║   ✅ Finished fetch jobs cron.             ║");
             info!(target: "cron", "╚════════════════════════════════════════════╝");
         }
+    } else {
+        info!(target: "cron", "⚠️ No bpp_id found in cron payload, skipping storage");
     }
 
     Json(AckResponse {
