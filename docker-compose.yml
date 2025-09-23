@@ -3,6 +3,7 @@ version: '3.8'
 services:
   bap-app:
     build: .
+    image: bap-onest-lite
     container_name: bap-onest-lite
     depends_on:
       redis:
@@ -11,6 +12,7 @@ services:
         condition: service_healthy
     volumes:
       - ./config:/app/config
+      - ./app/logs:/app/app/logs
     environment:
       APP_ENV: ${APP_ENV}
       DATABASE_URL: ${DATABASE_URL}
@@ -46,8 +48,9 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - onest-bap-lite_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  onest-bap-lite_postgres_data:
+    external: true
