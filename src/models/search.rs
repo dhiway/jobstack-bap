@@ -93,6 +93,7 @@ pub struct SearchRequestV2 {
     pub query: Option<String>,
     pub page: Option<u32>,
     pub limit: Option<u32>,
+    pub primary_filters: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
