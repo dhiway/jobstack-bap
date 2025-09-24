@@ -83,14 +83,6 @@ pub async fn run(app_state: AppState) {
         error!(target: "cron", "❌ Failed to store cron txn metadata: {:?}", e);
     }
 
-    // Update a separate key to always point to the latest cron transaction
-    let latest_key = "cron_txn:latest";
-    if let Err(e) = conn.set::<_, _, ()>(latest_key, &txn_id).await {
-        error!(target: "cron", "❌ Failed to store latest cron txn_id: {:?}", e);
-    } else {
-        info!(target: "cron", "✅ Updated latest cron transaction to {}", txn_id);
-    }
-
     // Send to BAP adapter
     let adapter_url = format!("{}/search", app_state.config.bap.caller_uri);
     if let Err(e) = post_json(&adapter_url, payload).await {

@@ -382,6 +382,13 @@ pub async fn handle_cron_on_search(
                 );
             }
         } else {
+            let latest_key = "cron_txn:latest";
+            if let Err(e) = conn.set::<_, _, ()>(latest_key, &txn_id).await {
+                error!(target: "cron", "❌ Failed to store latest cron txn_id: {:?}", e);
+            } else {
+                info!(target: "cron", "✅ Updated latest cron transaction to {}", txn_id);
+            }
+
             info!(target: "cron", "✅ All pages fetched for txn_id={}", txn_id);
             info!(target: "cron", "╔════════════════════════════════════════════╗");
             info!(target: "cron", "║   ✅ Finished fetch jobs cron.             ║");
