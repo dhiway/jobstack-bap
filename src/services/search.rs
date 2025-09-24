@@ -438,6 +438,15 @@ pub async fn handle_search_v2(
         .map(|r| r.split(',').map(|s| s.trim().to_lowercase()).collect())
         .unwrap_or_default();
     let query_filter = req.query.as_ref().map(|s| s.to_lowercase());
+    let primary_filters: Vec<String> = req
+        .primary_filters
+        .as_ref()
+        .map(|r| {
+            r.split(',')
+                .map(|s| s.trim().to_lowercase())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     for key in keys {
         if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
@@ -474,6 +483,13 @@ pub async fn handle_search_v2(
                                     role_name.split(',').map(|s| s.trim()).collect();
 
                                 let mut match_item = true;
+
+                                // primary_filter
+                                if !primary_filters.is_empty() {
+                                    if !primary_filters.iter().any(|pf| role_name.contains(pf)) {
+                                        continue;
+                                    }
+                                }
 
                                 // role filter
                                 if !role_filters.is_empty() {
