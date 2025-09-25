@@ -42,11 +42,19 @@ pub struct AppConfig {
     pub db: DbConfig,
     pub cache: CacheConfig,
     pub cron: CronConfig,
+    pub gcp: GcpConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobSchedule {
     pub seconds: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GcpConfig {
+    pub project_id: String,
+    pub model: String,
+    pub auth_token: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

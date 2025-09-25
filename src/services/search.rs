@@ -1,10 +1,16 @@
 use crate::models::search::SearchRequestV2;
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
+use crate::services::empeding::{EmbeddingService, GcpEmbeddingService};
 use crate::{
     models::search::SearchRequest,
     services::payload_generator::build_beckn_payload,
     state::AppState,
-    utils::{hash::generate_query_hash, http_client::post_json, search::matches_query_dynamic},
+    utils::{
+        empeding::{cosine_similarity, job_text_for_embedding, profile_text_for_embedding},
+        hash::generate_query_hash,
+        http_client::post_json,
+        search::matches_query_dynamic,
+    },
 };
 use axum::{extract::State, http::StatusCode, Json};
 use indexmap::IndexMap;
@@ -227,6 +233,9 @@ pub async fn handle_cron_on_search(
 
     let mut conn = app_state.redis_conn.lock().await;
 
+    // Create embedding service instance
+    let embedding_service = GcpEmbeddingService;
+
     if let Some(bpp_id) = &payload.context.bpp_id {
         let redis_key = format!("cron_jobs:{}:{}", txn_id, bpp_id);
 
@@ -245,13 +254,47 @@ pub async fn handle_cron_on_search(
             .and_then(|c| c.get("providers"))
             .and_then(|p| p.as_array())
         {
-            store_data
+            // Ensure store_data has providers array
+            let existing_providers = store_data
                 .pointer_mut("/message/catalog/providers")
-                .and_then(|existing_providers| existing_providers.as_array_mut())
-                .map(|arr| arr.extend(new_providers.clone()));
+                .and_then(|p| p.as_array_mut());
+
+            if let Some(existing) = existing_providers {
+                for mut provider in new_providers.clone() {
+                    if let Some(items) = provider.get_mut("items").and_then(|j| j.as_array_mut()) {
+                        for job in items.iter_mut() {
+                            let text = job_text_for_embedding(job);
+
+                            if text.trim().is_empty() {
+                                info!(
+                                    "⚠️ Job text is empty, skipping embedding for job: {:?}",
+                                    job["id"]
+                                );
+                                continue;
+                            }
+
+                            // Generate embedding (uses cache)
+                            match embedding_service
+                                .get_embedding(&text, &mut conn, app_state)
+                                .await
+                            {
+                                Ok(embedding) => {
+                                    job.as_object_mut().unwrap().insert(
+                                        "embedding".to_string(),
+                                        serde_json::json!(embedding),
+                                    );
+                                }
+                                Err(e) => error!("❌ Failed embedding: {:?}", e),
+                            }
+                        }
+                    }
+                    // Append processed provider to existing providers
+                    existing.push(provider);
+                }
+            }
         }
 
-        // Get pagination info from stored data
+        // --- Pagination info ---
         let (current_page, limit, total_count) = {
             let pagination = store_data
                 .pointer("/message/pagination")
@@ -278,13 +321,11 @@ pub async fn handle_cron_on_search(
 
             (page, limit, total_count)
         };
+
         info!(
             target: "cron",
             "📄 Pagination status for BPP {}: current_page = {} limit = {} total_count = {}",
-            bpp_id,
-            current_page,
-            limit,
-            total_count
+            bpp_id, current_page, limit, total_count
         );
 
         // Store back to Redis with TTL
@@ -304,9 +345,7 @@ pub async fn handle_cron_on_search(
             info!(
                 target: "cron",
                 "🔄 More pages to fetch: current_page = {} total_count = {} → requesting next_page = {}",
-                current_page,
-                total_count,
-                next_page
+                current_page, total_count, next_page
             );
 
             // Build intent for next page
@@ -329,7 +368,7 @@ pub async fn handle_cron_on_search(
                     }
                 ]
             });
-            // Build final message
+
             let message = json!({
                 "intent": intent,
                 "pagination": {
@@ -345,14 +384,12 @@ pub async fn handle_cron_on_search(
             store_data.pointer_mut("/message/pagination").map(|p| {
                 p["page"] = json!(next_page);
             });
-
             if let Err(e) = conn
                 .set_ex::<_, String, ()>(&redis_key, store_data.to_string(), ttl_secs)
                 .await
             {
                 error!(target: "cron", "❌ Failed to update next_page in Redis: {:?}", e);
             }
-
             let message_id = format!("msg-{}", Uuid::new_v4());
             let next_payload = build_beckn_payload(
                 &app_state.config,
@@ -369,16 +406,13 @@ pub async fn handle_cron_on_search(
                 error!(
                     target: "cron",
                     "❌ Failed to request next_page = {} (txn_id={}): {}",
-                    next_page,
-                    txn_id,
-                    e
+                    next_page, txn_id, e
                 );
             } else {
                 info!(
                     target: "cron",
                     "📨 Successfully requested next_page = {} for txn_id={}",
-                    next_page,
-                    txn_id
+                    next_page, txn_id
                 );
             }
         } else {
@@ -435,9 +469,6 @@ pub async fn handle_search_v2(
     let page = req.page.unwrap_or(1) as usize;
     let limit = req.limit.unwrap_or(10) as usize;
 
-    let mut seen_ids = HashSet::new();
-    let mut flat_items = vec![];
-
     let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
     let role_filters: Vec<String> = req
         .role
@@ -448,12 +479,30 @@ pub async fn handle_search_v2(
     let primary_filters: Vec<String> = req
         .primary_filters
         .as_ref()
-        .map(|r| {
-            r.split(',')
-                .map(|s| s.trim().to_lowercase())
-                .collect::<Vec<_>>()
-        })
+        .map(|r| r.split(',').map(|s| s.trim().to_lowercase()).collect())
         .unwrap_or_default();
+
+    // 👉 Compute profile embedding if profile exists
+    let profile_embedding: Option<Vec<f32>> = if let Some(profile) = &req.profile {
+        let profile_text = profile_text_for_embedding(profile);
+        info!("Profile text for embedding: {}", profile_text);
+
+        match GcpEmbeddingService
+            .get_embedding(&profile_text, &mut conn, &app_state)
+            .await
+        {
+            Ok(vec) => Some(vec),
+            Err(e) => {
+                error!("Failed to get embedding: {:?}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let mut seen_ids = HashSet::new();
+    let mut flat_items = vec![];
 
     for key in keys {
         if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
@@ -462,7 +511,7 @@ pub async fn handle_search_v2(
                     .pointer("/message/catalog/providers")
                     .and_then(|p| p.as_array())
                 {
-                    for provider in providers {
+                    for provider in providers.iter() {
                         let provider_name = provider
                             .get("descriptor")
                             .and_then(|d| d.get("name"))
@@ -470,7 +519,7 @@ pub async fn handle_search_v2(
                             .unwrap_or("")
                             .to_lowercase();
 
-                        // provider filter
+                        // Provider filter
                         if let Some(ref pf) = provider_filter {
                             if !provider_name.contains(pf) {
                                 continue;
@@ -489,48 +538,64 @@ pub async fn handle_search_v2(
                                 let item_roles: Vec<&str> =
                                     role_name.split(',').map(|s| s.trim()).collect();
 
-                                let mut match_item = true;
+                                // Primary filter
+                                if !primary_filters.is_empty()
+                                    && !primary_filters.iter().any(|pf| role_name.contains(pf))
+                                {
+                                    continue;
+                                }
 
-                                // primary_filter
-                                if !primary_filters.is_empty() {
-                                    if !primary_filters.iter().any(|pf| role_name.contains(pf)) {
+                                // Role filter
+                                if !role_filters.is_empty()
+                                    && !role_filters
+                                        .iter()
+                                        .any(|rf| item_roles.iter().any(|r| r.contains(rf)))
+                                {
+                                    continue;
+                                }
+
+                                // Query filter
+                                if let Some(ref qf) = query_filter {
+                                    if !matches_query_dynamic(&provider_name, item, qf) {
                                         continue;
                                     }
                                 }
 
-                                // role filter
-                                if !role_filters.is_empty() {
-                                    if !role_filters
-                                        .iter()
-                                        .any(|rf| item_roles.iter().any(|r| r.contains(rf)))
-                                    {
-                                        match_item = false;
+                                // Compute match_score
+                                let mut match_score = 0u8;
+                                if let Some(ref profile_emb) = profile_embedding {
+                                    if let Some(embedding_json) = item.get("embedding") {
+                                        if let Ok(job_emb) = serde_json::from_value::<Vec<f32>>(
+                                            embedding_json.clone(),
+                                        ) {
+                                            match_score = (cosine_similarity(profile_emb, &job_emb)
+                                                * 10.0)
+                                                .round()
+                                                as u8;
+                                        }
                                     }
                                 }
 
-                                // query filter
-                                if let Some(ref qf) = query_filter {
-                                    if !matches_query_dynamic(&provider_name, item, qf) {
-                                        match_item = false;
-                                    }
-                                }
+                                // Prepare item for response (remove embedding)
+                                let mut item_obj = item.as_object().cloned().unwrap_or_default();
+                                item_obj.remove("embedding");
+                                item_obj.insert("match_score".to_string(), json!(match_score));
 
-                                if match_item {
-                                    let id_key = item
-                                        .get("id")
-                                        .and_then(|v| v.as_str())
-                                        .map(|s| s.to_string())
-                                        .unwrap_or_else(|| {
-                                            serde_json::to_string(item).unwrap_or_default()
-                                        });
+                                // Deduplicate
+                                let id_key = item
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| {
+                                        serde_json::to_string(item).unwrap_or_default()
+                                    });
 
-                                    if seen_ids.insert(id_key) {
-                                        flat_items.push((
-                                            payload_json["context"].clone(),
-                                            provider.clone(),
-                                            item.clone(),
-                                        ));
-                                    }
+                                if seen_ids.insert(id_key) {
+                                    flat_items.push((
+                                        payload_json["context"].clone(),
+                                        provider.clone(),
+                                        json!(item_obj),
+                                    ));
                                 }
                             }
                         }
@@ -540,8 +605,16 @@ pub async fn handle_search_v2(
         }
     }
 
-    let total_count = flat_items.len();
+    // Sort by match_score descending if profile provided
+    if profile_embedding.is_some() {
+        flat_items.sort_by(|(_, _, a), (_, _, b)| {
+            let sa = a.get("match_score").and_then(|v| v.as_u64()).unwrap_or(0);
+            let sb = b.get("match_score").and_then(|v| v.as_u64()).unwrap_or(0);
+            sb.cmp(&sa)
+        });
+    }
 
+    let total_count = flat_items.len();
     let start = (page - 1) * limit;
     let paginated_items = flat_items
         .into_iter()
@@ -549,7 +622,7 @@ pub async fn handle_search_v2(
         .take(limit)
         .collect::<Vec<_>>();
 
-    //  Group back into payload → providers → items
+    // Group back into payload → providers → items
     let mut results_map: IndexMap<JsonValue, IndexMap<String, (JsonValue, Vec<JsonValue>)>> =
         IndexMap::new();
 
