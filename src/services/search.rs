@@ -24,76 +24,62 @@ use uuid::Uuid;
 pub async fn handle_search(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
     let start = Instant::now();
     let message_id = format!("msg-{}", Uuid::new_v4());
     let txn_id = format!("txn-{}", Uuid::new_v4());
 
     let query_hash = generate_query_hash(&req.message);
-
     let pattern = format!("search:{}:*", query_hash);
     info!("Looking for Redis keys with pattern: {}", pattern);
 
     // --- Get cached search results ---
-    let mut all_keys = {
-        let mut conn = app_state.redis_conn.lock().await;
+    let cached_results = match app_state.redis_pool.get().await {
+        Ok(mut conn) => {
+            let mut stream = conn
+                .scan_match::<String, String>(pattern.clone())
+                .await
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({
+                            "error": "Failed to scan Redis",
+                            "details": e.to_string()
+                        })),
+                    )
+                })?;
 
-        let mut stream = conn.scan_match::<_, String>(&pattern).await.map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to scan Redis",
-                    "details": e.to_string()
-                })),
-            )
-        })?;
-
-        let mut keys = vec![];
-        while let Some(k) = stream.next_item().await {
-            keys.push(k);
-        }
-        keys
-    };
-
-    all_keys.sort();
-
-    info!("Matched Redis keys: {:?}", all_keys);
-
-    let cached_results = {
-        let mut conn = app_state.redis_conn.lock().await;
-        let mut results = vec![];
-
-        for key in &all_keys {
-            match conn.get::<_, String>(key).await {
-                Ok(value) => {
-                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&value) {
-                        results.push(json_value);
-                    } else {
-                        error!("Failed to parse cached value for key: {}", key);
-                    }
-                }
-                Err(e) => error!("Redis get error for key {}: {}", key, e),
+            let mut keys = vec![];
+            while let Some(key) = stream.next_item().await {
+                keys.push(key);
             }
-        }
+            drop(stream);
 
-        results
+            let mut results = vec![];
+            for key in keys {
+                match conn.get::<String, String>(key.clone()).await {
+                    Ok(value) => match serde_json::from_str::<JsonValue>(&value) {
+                        Ok(json_value) => results.push(json_value),
+                        Err(_) => error!("Failed to parse cached value for key: {}", key),
+                    },
+                    Err(e) => error!("Redis get error for key {}: {}", key, e),
+                }
+            }
+            results
+        }
+        Err(e) => {
+            error!("Failed to get Redis connection from pool: {:?}", e);
+            vec![]
+        }
     };
 
     // --- Cache txn_id -> query_hash for on_search mapping ---
-    {
-        let mut conn = app_state.redis_conn.lock().await;
+    if let Ok(mut conn) = app_state.redis_pool.get().await {
         let txn_key = format!("txn_to_query:{}", txn_id);
-        conn.set_ex::<_, _, ()>(&txn_key, &query_hash, app_state.config.cache.txn_ttl_secs)
+        let _: () = conn
+            .set_ex::<_, _, ()>(&txn_key, &query_hash, app_state.config.cache.txn_ttl_secs)
             .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "error": "Failed to cache txn_id",
-                        "details": e.to_string()
-                    })),
-                )
-            })?;
+            .unwrap_or_else(|e| error!("Failed to cache txn_id: {:?}", e));
     }
 
     let config = app_state.config.clone();
@@ -108,34 +94,36 @@ pub async fn handle_search(
     );
     let adapter_url = format!("{}/search", config.bap.caller_uri);
 
-    // --- Throttle BAP calls (dynamic skip time) ---
-    let should_call_bap = {
-        let mut conn = app_state.redis_conn.lock().await;
-        let last_call_key = format!("last_call:{}", query_hash);
-
-        match conn.exists::<_, bool>(&last_call_key).await {
-            Ok(exists) if exists => {
-                let secs = app_state.config.cache.throttle_secs;
-                if secs % 60 == 0 {
+    // --- Throttle BAP calls ---
+    let should_call_bap = match app_state.redis_pool.get().await {
+        Ok(mut conn) => {
+            let last_call_key = format!("last_call:{}", query_hash);
+            match conn.exists::<_, bool>(&last_call_key).await {
+                Ok(exists) if exists => {
+                    let secs = app_state.config.cache.throttle_secs;
                     info!(
-                        ": Skipping BAP call (already called within last {} min)",
-                        secs / 60
+                        ": Skipping BAP call (already called within last {} {})",
+                        if secs % 60 == 0 { secs / 60 } else { secs },
+                        if secs % 60 == 0 { "min" } else { "secs" }
                     );
-                } else {
-                    info!(
-                        ": Skipping BAP call (already called within last {} secs)",
-                        secs
-                    );
+                    false
                 }
-                false
+                _ => {
+                    let _: () = conn
+                        .set_ex::<_, _, ()>(
+                            &last_call_key,
+                            "1",
+                            app_state.config.cache.throttle_secs,
+                        )
+                        .await
+                        .unwrap_or_default();
+                    true
+                }
             }
-            _ => {
-                let _: () = conn
-                    .set_ex(&last_call_key, "1", app_state.config.cache.throttle_secs)
-                    .await
-                    .unwrap_or_default();
-                true
-            }
+        }
+        Err(e) => {
+            error!("Failed to get Redis connection for throttle check: {:?}", e);
+            true
         }
     };
 
@@ -144,9 +132,10 @@ pub async fn handle_search(
             ": Sending search request to BAP adapter at: {}",
             adapter_url
         );
+        let payload_clone = payload.clone();
         tokio::spawn(async move {
-            if let Err(e) = post_json(&adapter_url, payload).await {
-                error!(":x: Failed to send search to BAP adapter: {}", e);
+            if let Err(e) = post_json(&adapter_url, payload_clone).await {
+                error!("❌ Failed to send search to BAP adapter: {}", e);
             }
         });
     }
@@ -161,12 +150,9 @@ pub async fn handle_search(
         duration_ms = %elapsed.as_millis(),
         "API timing(search)"
     );
-
     // --- Return cached results if available ---
     if !cached_results.is_empty() {
-        return Ok(Json(serde_json::json!({
-            "results": cached_results
-        })));
+        return Ok(Json(serde_json::json!({ "results": cached_results })));
     }
 
     Ok(Json(serde_json::json!([])))
@@ -181,39 +167,46 @@ pub async fn handle_on_search(
         return handle_cron_on_search(app_state, payload, txn_id).await;
     }
 
-    let mut conn = app_state.redis_conn.lock().await;
-    let txn_key = format!("txn_to_query:{}", txn_id);
+    // --- Get a Redis connection from the pool ---
+    match app_state.redis_pool.get().await {
+        Ok(mut conn) => {
+            let txn_key = format!("txn_to_query:{}", txn_id);
 
-    match conn.get::<_, String>(&txn_key).await {
-        Ok(query_hash) => match &payload.context.bpp_id {
-            Some(bpp_id) => {
-                let redis_key = format!("search:{}:{}", query_hash, bpp_id);
-                match serde_json::to_string(payload) {
-                    Ok(data) => {
-                        if let Err(e) = conn
-                            .set_ex::<_, _, ()>(
-                                &redis_key,
-                                data,
-                                app_state.config.cache.result_ttl_secs,
-                            )
-                            .await
-                        {
-                            info!("❌ Failed to store in Redis: {:?}", e);
-                        } else {
-                            info!("✅ Stored response at key: {}", redis_key);
+            match conn.get::<_, String>(&txn_key).await {
+                Ok(query_hash) => match &payload.context.bpp_id {
+                    Some(bpp_id) => {
+                        let redis_key = format!("search:{}:{}", query_hash, bpp_id);
+                        match serde_json::to_string(payload) {
+                            Ok(data) => {
+                                if let Err(e) = conn
+                                    .set_ex::<_, _, ()>(
+                                        &redis_key,
+                                        data,
+                                        app_state.config.cache.result_ttl_secs,
+                                    )
+                                    .await
+                                {
+                                    info!("❌ Failed to store in Redis: {:?}", e);
+                                } else {
+                                    info!("✅ Stored response at key: {}", redis_key);
+                                }
+                            }
+                            Err(e) => {
+                                info!("❌ Failed to serialize payload: {:?}", e);
+                            }
                         }
                     }
-                    Err(e) => {
-                        info!("❌ Failed to serialize payload: {:?}", e);
+                    None => {
+                        info!("⚠️ No bpp_id found in payload, skipping Redis cache");
                     }
+                },
+                Err(_) => {
+                    info!("❌ No query_hash found for txn_id = {}", txn_id);
                 }
             }
-            None => {
-                info!("⚠️ No bpp_id found in payload, skipping Redis cache");
-            }
-        },
-        Err(_) => {
-            info!("❌ No query_hash found for txn_id = {}", txn_id);
+        }
+        Err(e) => {
+            error!("❌ Failed to get Redis connection from pool: {:?}", e);
         }
     }
 
@@ -231,7 +224,17 @@ pub async fn handle_cron_on_search(
 ) -> Json<AckResponse> {
     info!(target: "cron", "📦 Handling cron on_search for txn_id={}", txn_id);
 
-    let mut conn = app_state.redis_conn.lock().await;
+    let mut conn = match app_state.redis_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!(target: "cron", "❌ Failed to get Redis connection: {:?}", e);
+            return Json(AckResponse {
+                message: AckStatus {
+                    ack: Ack { status: "ACK" },
+                },
+            });
+        }
+    };
 
     // Create embedding service instance
     let embedding_service = GcpEmbeddingService;
@@ -254,7 +257,6 @@ pub async fn handle_cron_on_search(
             .and_then(|c| c.get("providers"))
             .and_then(|p| p.as_array())
         {
-            // Ensure store_data has providers array
             let existing_providers = store_data
                 .pointer_mut("/message/catalog/providers")
                 .and_then(|p| p.as_array_mut());
@@ -273,7 +275,6 @@ pub async fn handle_cron_on_search(
                                 continue;
                             }
 
-                            // Generate embedding (uses cache)
                             match embedding_service
                                 .get_embedding(&text, &mut conn, app_state)
                                 .await
@@ -288,7 +289,6 @@ pub async fn handle_cron_on_search(
                             }
                         }
                     }
-                    // Append processed provider to existing providers
                     existing.push(provider);
                 }
             }
@@ -348,7 +348,6 @@ pub async fn handle_cron_on_search(
                 current_page, total_count, next_page
             );
 
-            // Build intent for next page
             let mut intent = payload
                 .message
                 .get("intent")
@@ -375,11 +374,8 @@ pub async fn handle_cron_on_search(
                     "page": next_page,
                     "limit": limit
                 },
-                "options": {
-                    "brief": false
-                }
+                "options": { "brief": false }
             });
-
             // Update Redis with next_page prevent duplicate calls
             store_data.pointer_mut("/message/pagination").map(|p| {
                 p["page"] = json!(next_page);
@@ -390,6 +386,7 @@ pub async fn handle_cron_on_search(
             {
                 error!(target: "cron", "❌ Failed to update next_page in Redis: {:?}", e);
             }
+
             let message_id = format!("msg-{}", Uuid::new_v4());
             let next_payload = build_beckn_payload(
                 &app_state.config,
@@ -443,7 +440,16 @@ pub async fn handle_search_v2(
     State(app_state): State<AppState>,
     Json(req): Json<SearchRequestV2>,
 ) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
-    let mut conn = app_state.redis_conn.lock().await;
+    let mut conn = match app_state.redis_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!("❌ Failed to get Redis connection: {:?}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Failed to connect to Redis" })),
+            ));
+        }
+    };
 
     // 👉 Get latest txn_id
     let latest_key = "cron_txn:latest";
@@ -657,11 +663,7 @@ pub async fn handle_search_v2(
     for (context, providers_map) in results_map {
         let mut payload = json!({
             "context": context,
-            "message": {
-                "catalog": {
-                    "providers": []
-                }
-            }
+            "message": { "catalog": { "providers": [] } }
         });
 
         let providers_arr = providers_map

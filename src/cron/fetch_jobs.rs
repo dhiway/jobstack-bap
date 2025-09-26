@@ -64,7 +64,6 @@ pub async fn run(app_state: AppState) {
 
     // Metadata to store in Redis for additional info
     let redis_key = format!("cron_txn:{}", txn_id);
-    let mut conn = app_state.redis_conn.lock().await;
     let metadata = serde_json::json!({
         "source": "cron",
         "brief": false,
@@ -72,20 +71,30 @@ pub async fn run(app_state: AppState) {
         "timestamp": Utc::now()
     });
 
-    if let Err(e) = conn
-        .set_ex::<_, _, ()>(
-            &redis_key,
-            metadata.to_string(),
-            app_state.config.cache.txn_ttl_secs,
-        )
-        .await
-    {
-        error!(target: "cron", "❌ Failed to store cron txn metadata: {:?}", e);
+    match app_state.redis_pool.get().await {
+        Ok(mut conn) => {
+            let ttl_secs = app_state.config.cache.txn_ttl_secs;
+
+            // Store metadata with TTL using set_ex
+            let res: Result<(), redis::RedisError> = conn
+                .set_ex(&redis_key, metadata.to_string(), ttl_secs)
+                .await;
+
+            match res {
+                Ok(_) => info!(target: "cron", "✅ Stored cron txn metadata at key {}", redis_key),
+                Err(e) => error!(target: "cron", "❌ Failed to store cron txn metadata: {:?}", e),
+            }
+        }
+        Err(e) => {
+            error!(target: "cron", "❌ Failed to get Redis connection from pool: {:?}", e);
+        }
     }
 
     // Send to BAP adapter
     let adapter_url = format!("{}/search", app_state.config.bap.caller_uri);
     if let Err(e) = post_json(&adapter_url, payload).await {
         error!(target: "cron", "❌ Failed to send search to BAP adapter: {}", e);
+    } else {
+        info!(target: "cron", "📨 Search request sent to BAP adapter successfully");
     }
 }
