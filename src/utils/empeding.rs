@@ -17,6 +17,29 @@ pub fn job_text_for_embedding(job: &serde_json::Value) -> String {
         parts.push(company);
     }
 
+    // Title from job details
+    if let Some(title) = job
+        .pointer("/tags/jobDetails/title")
+        .and_then(|v| v.as_str())
+    {
+        parts.push(title);
+    }
+    // sector from job details
+    if let Some(sector) = job
+        .pointer("/tags/jobDetails/sector")
+        .and_then(|v| v.as_str())
+    {
+        parts.push(sector);
+    }
+
+    // designation from job details
+    if let Some(designation) = job
+        .pointer("/tags/jobDetails/designation")
+        .and_then(|v| v.as_str())
+    {
+        parts.push(designation);
+    }
+
     // Industry
     if let Some(industry) = job.pointer("/tags/industry").and_then(|v| v.as_str()) {
         parts.push(industry);
@@ -49,9 +72,14 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
         let age_str = age.to_string();
         parts.push(age_str);
     }
+    // Role
+    if let Some(role) = profile.pointer("/metadata/role").and_then(|v| v.as_str()) {
+        info!("Role value: {}", role);
+        parts.push(role.to_string());
+    }
 
     // Who I Am
-    if let Some(who) = profile.pointer("/metadata/whoiam") {
+    if let Some(who) = profile.pointer("/metadata/whoIAm") {
         if let Some(location) = who.get("location").and_then(|v| v.as_str()) {
             parts.push(location.to_string());
         }
@@ -65,7 +93,7 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
 
     // Skills / ITI Specialization
     if let Some(specializations) = profile
-        .pointer("/metadata/whatihave/itiSpecialization")
+        .pointer("/metadata/whatIHave/itiSpecialization")
         .and_then(|v| v.as_array())
     {
         for s in specializations {
@@ -77,7 +105,7 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
 
     // Languages
     if let Some(languages) = profile
-        .pointer("/metadata/whatihave/languageSpoken")
+        .pointer("/metadata/whatIHave/languageSpoken")
         .and_then(|v| v.as_array())
     {
         for l in languages {
@@ -89,13 +117,13 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
 
     // Previous company, institute
     if let Some(prev) = profile
-        .pointer("/metadata/whatihave/previousCompany")
+        .pointer("/metadata/whatIHave/previousCompany")
         .and_then(|v| v.as_str())
     {
         parts.push(prev.to_string());
     }
     if let Some(institute) = profile
-        .pointer("/metadata/whatihave/itiInstitute")
+        .pointer("/metadata/whatIHave/itiInstitute")
         .and_then(|v| v.as_str())
     {
         parts.push(institute.to_string());
@@ -156,6 +184,8 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
             }
         }
     }
+
+    info!("Generated profile text for embedding: {}", parts.join(" "));
 
     parts.join(" ")
 }

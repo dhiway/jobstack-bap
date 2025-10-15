@@ -13,7 +13,6 @@ use crate::{
     },
 };
 use axum::{extract::State, http::StatusCode, Json};
-use indexmap::IndexMap;
 use redis::AsyncCommands;
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashSet;
@@ -451,7 +450,7 @@ pub async fn handle_search_v2(
         }
     };
 
-    // 👉 Get latest txn_id
+    // ✅ Get latest txn_id
     let latest_key = "cron_txn:latest";
     let txn_id: String = match conn.get(latest_key).await {
         Ok(Some(val)) => val,
@@ -463,7 +462,7 @@ pub async fn handle_search_v2(
         }
     };
 
-    // Fetch all BPP results for this txn_id
+    // ✅Fetch all BPP results for this txn_id
     let pattern = format!("cron_jobs:{}:*", txn_id);
     let keys: Vec<String> = conn.keys(&pattern).await.map_err(|e| {
         (
@@ -474,7 +473,6 @@ pub async fn handle_search_v2(
 
     let page = req.page.unwrap_or(1) as usize;
     let limit = req.limit.unwrap_or(10) as usize;
-
     let provider_filter = req.provider.as_ref().map(|s| s.to_lowercase());
     let role_filters: Vec<String> = req
         .role
@@ -488,7 +486,7 @@ pub async fn handle_search_v2(
         .map(|r| r.split(',').map(|s| s.trim().to_lowercase()).collect())
         .unwrap_or_default();
 
-    // 👉 Compute profile embedding if profile exists
+    // ✅ Compute embedding for profile
     let profile_embedding: Option<Vec<f32>> = if let Some(profile) = &req.profile {
         let profile_text = profile_text_for_embedding(profile);
         info!("Profile text for embedding: {}", profile_text);
@@ -508,7 +506,7 @@ pub async fn handle_search_v2(
     };
 
     let mut seen_ids = HashSet::new();
-    let mut flat_items = vec![];
+    let mut flat_items = Vec::new();
 
     for key in keys {
         if let Ok(Some(payload_str)) = conn.get::<_, Option<String>>(&key).await {
@@ -517,7 +515,7 @@ pub async fn handle_search_v2(
                     .pointer("/message/catalog/providers")
                     .and_then(|p| p.as_array())
                 {
-                    for provider in providers.iter() {
+                    for provider in providers {
                         let provider_name = provider
                             .get("descriptor")
                             .and_then(|d| d.get("name"))
@@ -544,14 +542,13 @@ pub async fn handle_search_v2(
                                 let item_roles: Vec<&str> =
                                     role_name.split(',').map(|s| s.trim()).collect();
 
-                                // Primary filter
+                                // Filters
                                 if !primary_filters.is_empty()
                                     && !primary_filters.iter().any(|pf| role_name.contains(pf))
                                 {
                                     continue;
                                 }
 
-                                // Role filter
                                 if !role_filters.is_empty()
                                     && !role_filters
                                         .iter()
@@ -560,34 +557,30 @@ pub async fn handle_search_v2(
                                     continue;
                                 }
 
-                                // Query filter
                                 if let Some(ref qf) = query_filter {
                                     if !matches_query_dynamic(&provider_name, item, qf) {
                                         continue;
                                     }
                                 }
 
-                                // Compute match_score
+                                // ✅ Compute match_score
                                 let mut match_score = 0u8;
                                 if let Some(ref profile_emb) = profile_embedding {
                                     if let Some(embedding_json) = item.get("embedding") {
                                         if let Ok(job_emb) = serde_json::from_value::<Vec<f32>>(
                                             embedding_json.clone(),
                                         ) {
-                                            match_score = (cosine_similarity(profile_emb, &job_emb)
-                                                * 10.0)
-                                                .round()
-                                                as u8;
+                                            let sim = cosine_similarity(profile_emb, &job_emb);
+                                            match_score = (sim * 10.0).round() as u8;
                                         }
                                     }
                                 }
 
-                                // Prepare item for response (remove embedding)
+                                // ✅ Prepare cleaned item
                                 let mut item_obj = item.as_object().cloned().unwrap_or_default();
                                 item_obj.remove("embedding");
                                 item_obj.insert("match_score".to_string(), json!(match_score));
 
-                                // Deduplicate
                                 let id_key = item
                                     .get("id")
                                     .and_then(|v| v.as_str())
@@ -611,73 +604,56 @@ pub async fn handle_search_v2(
         }
     }
 
-    // Sort by match_score descending if profile provided
+    // ✅ Global sort by match_score DESC (ensure correct ordering)
     if profile_embedding.is_some() {
         flat_items.sort_by(|(_, _, a), (_, _, b)| {
             let sa = a.get("match_score").and_then(|v| v.as_u64()).unwrap_or(0);
             let sb = b.get("match_score").and_then(|v| v.as_u64()).unwrap_or(0);
-            sb.cmp(&sa)
+            sb.cmp(&sa) // descending
         });
     }
 
+    // ✅ Pagination after sorting
     let total_count = flat_items.len();
     let start = (page - 1) * limit;
-    let paginated_items = flat_items
+    if start >= total_count {
+        return Ok(Json(json!({
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "totalCount": total_count
+            },
+            "results": []
+        })));
+    }
+
+    let end = std::cmp::min(start + limit, total_count);
+    let paginated_items = flat_items[start..end].to_vec();
+
+    // ✅ Rebuild ONDC-compatible response
+    let results: Vec<JsonValue> = paginated_items
         .into_iter()
-        .skip(start)
-        .take(limit)
-        .collect::<Vec<_>>();
-
-    // Group back into payload → providers → items
-    let mut results_map: IndexMap<JsonValue, IndexMap<String, (JsonValue, Vec<JsonValue>)>> =
-        IndexMap::new();
-
-    for (context, provider, item) in paginated_items {
-        let provider_descriptor = provider["descriptor"].clone();
-        let provider_id = provider.get("id").cloned().unwrap_or(json!(null));
-        let provider_fulfillments = provider.get("fulfillments").cloned().unwrap_or(json!([]));
-        let provider_locations = provider.get("locations").cloned().unwrap_or(json!([]));
-
-        let key = serde_json::to_string(&provider_descriptor).unwrap_or_default();
-
-        results_map
-            .entry(context.clone())
-            .or_default()
-            .entry(key)
-            .and_modify(|(_, items)| items.push(item.clone()))
-            .or_insert_with(|| {
-                (
-                    json!({
-                        "descriptor": provider_descriptor,
-                        "id": provider_id,
-                        "fulfillments": provider_fulfillments,
-                        "locations": provider_locations,
-                    }),
-                    vec![item.clone()],
-                )
-            });
-    }
-
-    let mut results = vec![];
-
-    for (context, providers_map) in results_map {
-        let mut payload = json!({
-            "context": context,
-            "message": { "catalog": { "providers": [] } }
-        });
-
-        let providers_arr = providers_map
-            .into_iter()
-            .map(|(_, (mut provider_obj, items))| {
-                provider_obj["items"] = json!(items);
-                provider_obj
+        .map(|(context, provider, item)| {
+            json!({
+                "context": context,
+                "message": {
+                    "catalog": {
+                        "providers": [
+                            {
+                                "descriptor": provider["descriptor"].clone(),
+                                "id": provider.get("id").cloned().unwrap_or(json!(null)),
+                                "fulfillments": provider.get("fulfillments").cloned().unwrap_or(json!([])),
+                                "locations": provider.get("locations").cloned().unwrap_or(json!([])),
+                                "items": [item]
+                            }
+                        ]
+                    }
+                }
             })
-            .collect::<Vec<_>>();
+        })
+        .collect();
 
-        payload["message"]["catalog"]["providers"] = json!(providers_arr);
-        results.push(payload);
-    }
-
+    // ✅ Final response
     let response = json!({
         "pagination": {
             "page": page,
