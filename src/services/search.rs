@@ -249,7 +249,7 @@ pub async fn handle_cron_on_search(
                 _ => serde_json::to_value(payload).unwrap(),
             };
 
-        // Append new providers to existing ones
+        // Append or update new providers
         if let Some(new_providers) = payload
             .message
             .get("catalog")
@@ -261,34 +261,101 @@ pub async fn handle_cron_on_search(
                 .and_then(|p| p.as_array_mut());
 
             if let Some(existing) = existing_providers {
+                // Build a map of existing providers by jobProviderName
+                let mut provider_index_map = std::collections::HashMap::new();
+                for (i, provider) in existing.iter().enumerate() {
+                    if let Some(name) = provider
+                        .pointer("/items/0/tags/basicInfo/jobProviderName")
+                        .and_then(|v| v.as_str())
+                    {
+                        provider_index_map.insert(name.to_string(), i);
+                    }
+                }
+
                 for mut provider in new_providers.clone() {
+                    let provider_name = provider
+                        .pointer("/items/0/tags/basicInfo/jobProviderName")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown Provider")
+                        .to_string();
+
                     if let Some(items) = provider.get_mut("items").and_then(|j| j.as_array_mut()) {
                         for job in items.iter_mut() {
+                            let job_id = job
+                                .get("id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown Job")
+                                .to_string();
+
                             let text = job_text_for_embedding(job);
 
                             if text.trim().is_empty() {
                                 info!(
-                                    "⚠️ Job text is empty, skipping embedding for job: {:?}",
-                                    job["id"]
+                                    target: "cron",
+                                    "⚠️ Skipping embedding: provider='{}', job_id='{}', reason='empty text'",
+                                    provider_name,
+                                    job_id
                                 );
                                 continue;
                             }
+
+                            info!(
+                                target: "cron",
+                                "🔹 Generating embedding: provider='{}', job_id='{}', text_len={}",
+                                provider_name,
+                                job_id,
+                                text.len()
+                            );
 
                             match embedding_service
                                 .get_embedding(&text, &mut conn, app_state)
                                 .await
                             {
                                 Ok(embedding) => {
-                                    job.as_object_mut().unwrap().insert(
-                                        "embedding".to_string(),
-                                        serde_json::json!(embedding),
+                                    let embedding_len = embedding.len();
+
+                                    if let Some(obj) = job.as_object_mut() {
+                                        obj.insert(
+                                            "embedding".to_string(),
+                                            serde_json::json!(embedding),
+                                        );
+                                    }
+
+                                    let is_stored = job.get("embedding").is_some();
+                                    info!(
+                                        target: "cron",
+                                        "✅ Embedding stored: provider=  {}, job_id='{}', embedding_len={}, stored_in_job={}",
+                                        provider_name,
+                                        job_id,
+                                        embedding_len,
+                                        is_stored
                                     );
                                 }
-                                Err(e) => error!("❌ Failed embedding: {:?}", e),
+                                Err(e) => {
+                                    error!(
+                                        target: "cron",
+                                        "❌ Failed embedding: provider='{}', job_id='{}', error={:?}",
+                                        provider_name,
+                                        job_id,
+                                        e
+                                    );
+                                }
                             }
                         }
+                    } else {
+                        info!(
+                            target: "cron",
+                            "⚠️ No items found for provider='{}', skipping embedding",
+                            provider_name
+                        );
                     }
-                    existing.push(provider);
+
+                    // Insert or update provider
+                    if let Some(&idx) = provider_index_map.get(&provider_name) {
+                        existing[idx] = provider;
+                    } else {
+                        existing.push(provider);
+                    }
                 }
             }
         }

@@ -1,20 +1,11 @@
 use tracing::info;
 
 pub fn job_text_for_embedding(job: &serde_json::Value) -> String {
-    info!("Generating text for job embedding: {:?}", job.get("id"));
     let mut parts = Vec::new();
 
     // Title from descriptor
     if let Some(title) = job.pointer("/descriptor/name").and_then(|v| v.as_str()) {
-        parts.push(title);
-    }
-
-    // Company / job provider name
-    if let Some(company) = job
-        .pointer("/tags/basicInfo/jobProviderName")
-        .and_then(|v| v.as_str())
-    {
-        parts.push(company);
+        parts.push(title.to_string());
     }
 
     // Title from job details
@@ -22,32 +13,33 @@ pub fn job_text_for_embedding(job: &serde_json::Value) -> String {
         .pointer("/tags/jobDetails/title")
         .and_then(|v| v.as_str())
     {
-        parts.push(title);
+        parts.push(title.to_string());
     }
-    // sector from job details
+
+    // Sector from job details
     if let Some(sector) = job
         .pointer("/tags/jobDetails/sector")
         .and_then(|v| v.as_str())
     {
-        parts.push(sector);
+        parts.push(sector.to_string());
     }
 
-    // designation from job details
+    // Designation from job details
     if let Some(designation) = job
         .pointer("/tags/jobDetails/designation")
         .and_then(|v| v.as_str())
     {
-        parts.push(designation);
+        parts.push(designation.to_string());
     }
 
     // Industry
     if let Some(industry) = job.pointer("/tags/industry").and_then(|v| v.as_str()) {
-        parts.push(industry);
+        parts.push(industry.to_string());
     }
 
     // Role
     if let Some(role) = job.pointer("/tags/role").and_then(|v| v.as_str()) {
-        parts.push(role);
+        parts.push(role.to_string());
     }
 
     // Location (city)
@@ -55,7 +47,31 @@ pub fn job_text_for_embedding(job: &serde_json::Value) -> String {
         .pointer("/tags/jobProviderLocation/city")
         .and_then(|v| v.as_str())
     {
-        parts.push(location);
+        parts.push(location.to_string());
+    }
+
+    // Languages
+    if let Some(languages) = job
+        .pointer("/tags/jobNeeds/languagesSubsection/languagesKnown")
+        .and_then(|v| v.as_array())
+    {
+        for l in languages {
+            if let Some(s) = l.as_str() {
+                parts.push(format!("language {}", s));
+            }
+        }
+    }
+
+    // ITI Specialty Preferences
+    if let Some(iti) = job
+        .pointer("/tags/jobNeeds/educationSubsection/itiSpecialtyPreference")
+        .and_then(|v| v.as_array())
+    {
+        for s in iti {
+            if let Some(spec) = s.as_str() {
+                parts.push(format!("iti specialty {}", spec));
+            }
+        }
     }
 
     parts.join(" ")
