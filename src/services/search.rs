@@ -352,7 +352,55 @@ pub async fn handle_cron_on_search(
 
                     // Insert or update provider
                     if let Some(&idx) = provider_index_map.get(&provider_name) {
-                        existing[idx] = provider;
+                        // Merge items for existing provider instead of replacing the whole thing
+                        if let Some(existing_items) = existing[idx]
+                            .get_mut("items")
+                            .and_then(|v| v.as_array_mut())
+                        {
+                            if let Some(new_items) =
+                                provider.get("items").and_then(|v| v.as_array())
+                            {
+                                // Build set of existing job_ids to avoid duplicates
+                                let existing_job_ids: std::collections::HashSet<String> =
+                                    existing_items
+                                        .iter()
+                                        .filter_map(|job| {
+                                            job.get("id")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string())
+                                        })
+                                        .collect();
+
+                                for new_job in new_items {
+                                    if let Some(job_id) = new_job.get("id").and_then(|v| v.as_str())
+                                    {
+                                        if !existing_job_ids.contains(job_id) {
+                                            existing_items.push(new_job.clone());
+                                        } else {
+                                            // Optional: update embedding if exists
+                                            if let Some(existing_job) =
+                                                existing_items.iter_mut().find(|j| {
+                                                    j.get("id").and_then(|v| v.as_str())
+                                                        == Some(job_id)
+                                                })
+                                            {
+                                                if let Some(new_embedding) =
+                                                    new_job.get("embedding")
+                                                {
+                                                    if let Some(obj) = existing_job.as_object_mut()
+                                                    {
+                                                        obj.insert(
+                                                            "embedding".to_string(),
+                                                            new_embedding.clone(),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         existing.push(provider);
                     }
