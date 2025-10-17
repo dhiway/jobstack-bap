@@ -1,5 +1,10 @@
 use tracing::info;
 
+fn weighted_push(parts: &mut Vec<String>, text: &str, weight: usize) {
+    for _ in 0..weight {
+        parts.push(text.to_string());
+    }
+}
 pub fn job_text_for_embedding(job: &serde_json::Value) -> String {
     let mut parts = Vec::new();
 
@@ -8,12 +13,12 @@ pub fn job_text_for_embedding(job: &serde_json::Value) -> String {
         parts.push(title.to_string());
     }
 
-    // Title from job details
+    // Title from job details (⚡ weighted)
     if let Some(title) = job
         .pointer("/tags/jobDetails/title")
         .and_then(|v| v.as_str())
     {
-        parts.push(title.to_string());
+        weighted_push(&mut parts, title, 3); // weight = 3x
     }
 
     // Sector from job details
@@ -88,10 +93,10 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
         let age_str = age.to_string();
         parts.push(age_str);
     }
-    // Role
+    // Role (⚡ weighted)
     if let Some(role) = profile.pointer("/metadata/role").and_then(|v| v.as_str()) {
         info!("Role value: {}", role);
-        parts.push(role.to_string());
+        weighted_push(&mut parts, role, 3); // weight = 3x
     }
 
     // Who I Am
@@ -131,13 +136,8 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
         }
     }
 
-    // Previous company, institute
-    if let Some(prev) = profile
-        .pointer("/metadata/whatIHave/previousCompany")
-        .and_then(|v| v.as_str())
-    {
-        parts.push(prev.to_string());
-    }
+    // Previous company
+
     if let Some(institute) = profile
         .pointer("/metadata/whatIHave/itiInstitute")
         .and_then(|v| v.as_str())
@@ -152,28 +152,6 @@ pub fn profile_text_for_embedding(profile: &serde_json::Value) -> String {
     {
         for e in education {
             if let Some(s) = e.as_str() {
-                parts.push(s.to_string());
-            }
-        }
-    }
-
-    if let Some(work_exp) = profile
-        .pointer("/metadata/workExperience")
-        .and_then(|v| v.as_array())
-    {
-        for w in work_exp {
-            if let Some(s) = w.as_str() {
-                parts.push(s.to_string());
-            }
-        }
-    }
-
-    if let Some(certificates) = profile
-        .pointer("/metadata/certificates")
-        .and_then(|v| v.as_array())
-    {
-        for c in certificates {
-            if let Some(s) = c.as_str() {
                 parts.push(s.to_string());
             }
         }
