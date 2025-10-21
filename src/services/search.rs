@@ -287,7 +287,7 @@ pub async fn handle_cron_on_search(
                                 .unwrap_or("Unknown Job")
                                 .to_string();
 
-                            let text = job_text_for_embedding(job);
+                            let text = job_text_for_embedding(job, &app_state.config);
 
                             if text.trim().is_empty() {
                                 info!(
@@ -603,7 +603,7 @@ pub async fn handle_search_v2(
 
     // ✅ Compute embedding for profile
     let profile_embedding: Option<Vec<f32>> = if let Some(profile) = &req.profile {
-        let profile_text = profile_text_for_embedding(profile);
+        let profile_text = profile_text_for_embedding(profile, &app_state.config);
         info!("Profile text for embedding: {}", profile_text);
 
         match GcpEmbeddingService

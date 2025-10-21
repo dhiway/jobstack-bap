@@ -33,17 +33,6 @@ pub struct CacheConfig {
     pub txn_ttl_secs: u64,
     pub throttle_secs: u64,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AppConfig {
-    debug: bool,
-    pub bap: Bap,
-    pub http: HttpConfig,
-    pub redis: RedisConfig,
-    pub db: DbConfig,
-    pub cache: CacheConfig,
-    pub cron: CronConfig,
-    pub gcp: GcpConfig,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobSchedule {
@@ -55,6 +44,33 @@ pub struct GcpConfig {
     pub project_id: String,
     pub model: String,
     pub auth_token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FieldWeight {
+    pub path: String,
+    pub weight: usize,
+    pub label: Option<String>,
+    #[serde(default)]
+    pub is_array: bool,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EmbeddingWeights {
+    pub job: Vec<FieldWeight>,
+    pub profile: Vec<FieldWeight>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppConfig {
+    debug: bool,
+    pub bap: Bap,
+    pub http: HttpConfig,
+    pub redis: RedisConfig,
+    pub db: DbConfig,
+    pub cache: CacheConfig,
+    pub cron: CronConfig,
+    pub gcp: GcpConfig,
+    pub embedding_weights: EmbeddingWeights,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
