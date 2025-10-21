@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use serde_json::Value;
+use strsim::jaro_winkler;
 use tracing::info;
 
 fn weighted_push(parts: &mut Vec<String>, text: &str, weight: usize) {
@@ -79,74 +80,70 @@ pub fn compute_match_score(
 ) -> f32 {
     info!("🔍 Computing match score...");
 
-    // info!(
-    //     "📄 Profile metadata: {}",
-    //     serde_json::to_string_pretty(profile_meta).unwrap_or_default()
-    // );
-    // info!(
-    //     "💼 Job metadata: {}",
-    //     serde_json::to_string_pretty(job_meta).unwrap_or_default()
-    // );
-
+    // --- Base cosine similarity ---
     let mut score = cosine_similarity(profile_emb, job_emb);
     let base_score = score;
     info!("🧮 Base cosine similarity score: {:.4}", base_score);
 
-    // --- ROLE BOOST / PENALTY ---
+    let mut mismatches = 0;
+
+    // --- ROLE MATCH ---
     if let Some(profile_role) = profile_meta
         .pointer("/metadata/role")
         .and_then(|v| v.as_str())
     {
         if let Some(job_role) = job_meta.pointer("/tags/role").and_then(|v| v.as_str()) {
-            if profile_role.eq_ignore_ascii_case(job_role) {
+            let similarity = jaro_winkler(profile_role, job_role);
+            if similarity >= 0.8 {
                 score *= 1.2;
                 info!(
-                    "🎯 Role match! '{}' == '{}' → boosted score to {:.4}",
-                    profile_role, job_role, score
+                    "🎯 Role roughly matches ('{}' ≈ '{}', similarity {:.2}) → boosted score to {:.4}",
+                    profile_role, job_role, similarity, score
                 );
             } else {
                 score *= 0.85;
+                mismatches += 1;
                 info!(
-                    "⚠️ Role mismatch: '{}' != '{}' → penalized score to {:.4}",
-                    profile_role, job_role, score
+                    "⚠️ Role mismatch ('{}' != '{}', similarity {:.2}) → penalized score to {:.4}",
+                    profile_role, job_role, similarity, score
                 );
             }
         } else {
             score *= 0.9;
+            mismatches += 1;
             info!("⚠️ Missing job role → slight penalty to {:.4}", score);
         }
-    } else {
-        info!("⚠️ No role in profile metadata — skipping role boost");
     }
 
-    // --- INDUSTRY BOOST / PENALTY ---
+    // --- INDUSTRY MATCH ---
     if let Some(profile_industry) = profile_meta
         .pointer("/metadata/industry")
         .and_then(|v| v.as_str())
     {
         if let Some(job_industry) = job_meta.pointer("/tags/industry").and_then(|v| v.as_str()) {
-            if profile_industry.eq_ignore_ascii_case(job_industry) {
+            let similarity = jaro_winkler(profile_industry, job_industry);
+            if similarity >= 0.8 {
                 score *= 1.1;
                 info!(
-                    "🏭 Industry match! '{}' == '{}' → boosted score to {:.4}",
-                    profile_industry, job_industry, score
+                    "🏭 Industry roughly matches ('{}' ≈ '{}', similarity {:.2}) → boosted score to {:.4}",
+                    profile_industry, job_industry, similarity, score
                 );
             } else {
                 score *= 0.9;
+                mismatches += 1;
                 info!(
-                    "⚠️ Industry mismatch: '{}' != '{}' → penalized score to {:.4}",
-                    profile_industry, job_industry, score
+                    "⚠️ Industry mismatch ('{}' != '{}', similarity {:.2}) → penalized score to {:.4}",
+                    profile_industry, job_industry, similarity, score
                 );
             }
         } else {
             score *= 0.95;
+            mismatches += 1;
             info!("⚠️ Missing job industry → slight penalty to {:.4}", score);
         }
-    } else {
-        info!("⚠️ No industry in profile metadata — skipping industry boost");
     }
 
-    // --- LOCATION BOOST / PENALTY ---
+    // --- LOCATION MATCH ---
     if let Some(profile_city) = profile_meta
         .pointer("/metadata/whoIAm/locationData/city")
         .and_then(|v| v.as_str())
@@ -155,33 +152,52 @@ pub fn compute_match_score(
             .pointer("/tags/jobProviderLocation/city")
             .and_then(|v| v.as_str())
         {
-            if profile_city.eq_ignore_ascii_case(job_city) {
+            let similarity = jaro_winkler(profile_city, job_city);
+            if similarity >= 0.8 {
                 score *= 1.05;
                 info!(
-                    "📍 Location match! '{}' == '{}' → boosted score to {:.4}",
-                    profile_city, job_city, score
+                    "📍 Location roughly matches ('{}' ≈ '{}', similarity {:.2}) → boosted score to {:.4}",
+                    profile_city, job_city, similarity, score
                 );
             } else {
                 score *= 0.95;
+                mismatches += 1;
                 info!(
-                    "⚠️ Location mismatch: '{}' != '{}' → penalized score to {:.4}",
-                    profile_city, job_city, score
+                    "⚠️ Location mismatch ('{}' != '{}', similarity {:.2}) → penalized score to {:.4}",
+                    profile_city, job_city, similarity, score
                 );
             }
         } else {
             score *= 0.95;
+            mismatches += 1;
             info!("⚠️ Missing job location → slight penalty to {:.4}", score);
         }
-    } else {
-        info!("⚠️ No city in profile metadata — skipping location boost");
     }
 
-    // --- NORMALIZE ---
+    // --- Additional penalties for multiple mismatches ---
+    match mismatches {
+        2 => {
+            score *= 0.85;
+            info!(
+                "⚠️ 2 mismatches → additional moderate penalty applied, score {:.4}",
+                score
+            );
+        }
+        3..=usize::MAX => {
+            score *= 0.7;
+            info!(
+                "🚨 3+ mismatches → additional heavy penalty applied, score {:.4}",
+                score
+            );
+        }
+        _ => {}
+    }
+
+    // --- Normalize ---
     if score.is_nan() {
         score = 0.0;
         info!("🚫 NaN detected — setting score to 0.0");
     }
-
     score = score.clamp(0.0, 1.0);
     info!(
         "✅ Final match score: {:.4} (base {:.4})",
