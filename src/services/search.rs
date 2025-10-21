@@ -6,7 +6,10 @@ use crate::{
     services::payload_generator::build_beckn_payload,
     state::AppState,
     utils::{
-        empeding::{cosine_similarity, job_text_for_embedding, profile_text_for_embedding},
+        empeding::{
+            compute_match_score, cosine_similarity, job_text_for_embedding,
+            profile_text_for_embedding,
+        },
         hash::generate_query_hash,
         http_client::post_json,
         search::matches_query_dynamic,
@@ -680,13 +683,34 @@ pub async fn handle_search_v2(
 
                                 // ✅ Compute match_score
                                 let mut match_score = 0u8;
+                                // if let Some(ref profile_emb) = profile_embedding {
+                                //     if let Some(embedding_json) = item.get("embedding") {
+                                //         if let Ok(job_emb) = serde_json::from_value::<Vec<f32>>(
+                                //             embedding_json.clone(),
+                                //         ) {
+                                //             let sim = cosine_similarity(profile_emb, &job_emb);
+                                //             match_score = (sim * 10.0).round() as u8;
+                                //         }
+                                //     }
+                                // }
                                 if let Some(ref profile_emb) = profile_embedding {
                                     if let Some(embedding_json) = item.get("embedding") {
                                         if let Ok(job_emb) = serde_json::from_value::<Vec<f32>>(
                                             embedding_json.clone(),
                                         ) {
-                                            let sim = cosine_similarity(profile_emb, &job_emb);
-                                            match_score = (sim * 10.0).round() as u8;
+                                            // fix: avoid temporary drop
+                                            let empty_json = serde_json::json!({});
+                                            let profile_meta =
+                                                req.profile.as_ref().unwrap_or(&empty_json);
+
+                                            let score = compute_match_score(
+                                                profile_emb,
+                                                &job_emb,
+                                                profile_meta,
+                                                &item,
+                                            );
+
+                                            match_score = (score * 10.0).round() as u8;
                                         }
                                     }
                                 }
