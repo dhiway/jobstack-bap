@@ -61,6 +61,17 @@ pub struct EmbeddingWeights {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MetaDataMatch {
+    pub name: String,
+    pub profile_path: String,
+    pub job_path: String,
+    pub weight: usize,
+    #[serde(default)]
+    pub is_array: bool,
+    pub compare_mode: String,
+    pub penalty: f32,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     debug: bool,
     pub bap: Bap,
@@ -70,7 +81,7 @@ pub struct AppConfig {
     pub cache: CacheConfig,
     pub cron: CronConfig,
     pub gcp: GcpConfig,
-    pub embedding_weights: EmbeddingWeights,
+    pub metadata_match: Vec<MetaDataMatch>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

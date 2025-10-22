@@ -708,6 +708,7 @@ pub async fn handle_search_v2(
                                                 &job_emb,
                                                 profile_meta,
                                                 &item,
+                                                &app_state.config,
                                             );
 
                                             match_score = (score * 10.0).round() as u8;
