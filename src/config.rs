@@ -23,10 +23,12 @@ pub struct Bap {
 pub struct RedisConfig {
     pub url: String,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DbConfig {
     pub url: String,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CacheConfig {
     pub result_ttl_secs: u64,
@@ -54,6 +56,7 @@ pub struct FieldWeight {
     #[serde(default)]
     pub is_array: bool,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EmbeddingWeights {
     pub job: Vec<FieldWeight>,
@@ -64,16 +67,37 @@ pub struct EmbeddingWeights {
 pub struct MetaDataMatch {
     pub name: String,
     pub profile_path: String,
+    #[serde(default)]
     pub job_path: String,
-    pub weight: usize,
+    #[serde(default)]
+    pub job_path_min: Option<String>,
+    #[serde(default)]
+    pub job_path_max: Option<String>,
+    #[serde(default)]
+    pub weight: Option<usize>,
     #[serde(default)]
     pub is_array: bool,
-    pub compare_mode: String,
+    pub match_mode: MatchMode,
     pub penalty: f32,
+    #[serde(default)]
+    pub bonus: Option<f32>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum MatchMode {
+    Embed,
+    Manual,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CronConfig {
+    pub fetch_jobs: JobSchedule,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
-    debug: bool,
+    pub debug: bool,
     pub bap: Bap,
     pub http: HttpConfig,
     pub redis: RedisConfig,
@@ -84,15 +108,11 @@ pub struct AppConfig {
     pub metadata_match: Vec<MetaDataMatch>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CronConfig {
-    pub fetch_jobs: JobSchedule,
-}
 impl AppConfig {
     pub fn new() -> Result<Self, ConfigError> {
         let args: Vec<String> = env::args().collect();
         if args.len() < 2 {
-            error!("Error: Configuration path not provided. Usage: cargo run -- <config_path>");
+            error!("❌ Error: Configuration path not provided. Usage: cargo run -- <config_path>");
             process::exit(1);
         }
         let config_path = &args[1];
@@ -101,6 +121,7 @@ impl AppConfig {
             .add_source(File::with_name(&config_path))
             .build()?
             .try_deserialize()?;
+
         Ok(config)
     }
 }
