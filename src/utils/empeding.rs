@@ -1,9 +1,24 @@
 use crate::config::AppConfig;
 use crate::config::MetaDataMatch;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use strsim::jaro_winkler;
 use tracing::info;
+
+pub fn cached_jaro(
+    profile_str: &str,
+    job_str: &str,
+    cache: &mut HashMap<(String, String), f32>,
+) -> f32 {
+    let key = (profile_str.to_string(), job_str.to_string());
+    if let Some(&sim) = cache.get(&key) {
+        return sim;
+    }
+    let sim = jaro_winkler(profile_str, job_str) as f32;
+    cache.insert(key, sim);
+    sim
+}
 
 fn weighted_push(parts: &mut Vec<String>, text: &str, weight: usize) {
     for _ in 0..weight {
@@ -76,46 +91,39 @@ pub fn job_text_for_embedding(job: &Value, config: &AppConfig) -> String {
     parts.join(" ")
 }
 
-pub fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
-    if vec_a.len() != vec_b.len() || vec_a.is_empty() {
+pub fn cosine_similarity_with_norm(vec_a: &[f32], vec_b: &[f32], norm_a: f32, norm_b: f32) -> f32 {
+    if vec_a.len() != vec_b.len() || vec_a.is_empty() || norm_a == 0.0 || norm_b == 0.0 {
         return 0.0;
     }
-
     let dot_product: f32 = vec_a.iter().zip(vec_b.iter()).map(|(a, b)| a * b).sum();
-    let norm_a: f32 = vec_a.iter().map(|a| a * a).sum::<f32>().sqrt();
-    let norm_b: f32 = vec_b.iter().map(|b| b * b).sum::<f32>().sqrt();
-
-    if norm_a == 0.0 || norm_b == 0.0 {
-        0.0
-    } else {
-        dot_product / (norm_a * norm_b)
-    }
+    dot_product / (norm_a * norm_b)
 }
 
 /// Compute final match score combining embedding cosine and manual numeric fields
 pub fn compute_match_score(
     profile_emb: &[f32],
+    profile_norm: f32,
     job_emb: &[f32],
+    job_norm: f32,
     profile_meta: &Value,
     job_meta: &Value,
     config: &AppConfig,
+    string_sim_cache: &mut HashMap<(String, String), f32>,
 ) -> f32 {
     info!("🔍 Computing match score...");
     let match_score = load_match_score_config(config.match_score_path.as_str());
 
-    // Base cosine similarity
-    let mut score = cosine_similarity(profile_emb, job_emb);
+    // Base cosine similarity using precomputed norms
+    let mut score = cosine_similarity_with_norm(profile_emb, job_emb, profile_norm, job_norm);
     let base_score = score;
     info!("🧮 Base cosine similarity score: {:.4}", base_score);
 
     let mut mismatches = 0;
 
     for field in &match_score {
-        // Common values
         let profile_val = profile_meta.pointer(&field.profile_path);
         let job_val = job_meta.pointer(&field.job_path);
 
-        // 👇 Generic missing profile penalty
         if job_val.is_some() && (profile_val.is_none() || profile_val == Some(&Value::Null)) {
             score *= field.penalty;
             mismatches += 1;
@@ -127,13 +135,12 @@ pub fn compute_match_score(
 
         match field.match_mode {
             crate::config::MatchMode::Embed => {
-                // String similarity for role/industry
                 if field.name == "role" || field.name == "industry" {
                     let profile_str = profile_val.and_then(|v| v.as_str()).unwrap_or_default();
                     let job_str = job_val.and_then(|v| v.as_str()).unwrap_or_default();
 
                     if !profile_str.is_empty() && !job_str.is_empty() {
-                        let sim = jaro_winkler(profile_str, job_str);
+                        let sim = cached_jaro(profile_str, job_str, string_sim_cache);
                         if sim < 0.8 {
                             score *= field.penalty;
                             mismatches += 1;
@@ -150,9 +157,7 @@ pub fn compute_match_score(
                     }
                 }
             }
-
             crate::config::MatchMode::Manual => {
-                // Range-based manual fields (like salary, hours, etc.)
                 let job_min = field
                     .job_path_min
                     .as_ref()
@@ -188,7 +193,6 @@ pub fn compute_match_score(
         }
     }
 
-    // Additional global penalties
     match mismatches {
         2 => score *= 0.85,
         3..=usize::MAX => score *= 0.7,
@@ -200,11 +204,5 @@ pub fn compute_match_score(
         info!("🚫 NaN detected — setting score to 0.0");
     }
 
-    score = score.clamp(0.0, 1.0);
-    info!(
-        "✅ Final match score: {:.4} (base {:.4})",
-        score, base_score
-    );
-
-    score
+    score.clamp(0.0, 1.0)
 }

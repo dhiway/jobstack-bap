@@ -15,7 +15,7 @@ use crate::{
 use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
 use serde_json::{json, Value as JsonValue};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
@@ -564,6 +564,9 @@ pub async fn handle_search_v2(
             ));
         }
     };
+    // ✅ Initialize string similarity cache
+
+    let mut string_sim_cache: HashMap<(String, String), f32> = HashMap::new();
 
     // ✅ Get latest txn_id
     let latest_key = "cron_txn:latest";
@@ -680,16 +683,6 @@ pub async fn handle_search_v2(
 
                                 // ✅ Compute match_score
                                 let mut match_score = 0u8;
-                                // if let Some(ref profile_emb) = profile_embedding {
-                                //     if let Some(embedding_json) = item.get("embedding") {
-                                //         if let Ok(job_emb) = serde_json::from_value::<Vec<f32>>(
-                                //             embedding_json.clone(),
-                                //         ) {
-                                //             let sim = cosine_similarity(profile_emb, &job_emb);
-                                //             match_score = (sim * 10.0).round() as u8;
-                                //         }
-                                //     }
-                                // }
                                 if let Some(ref profile_emb) = profile_embedding {
                                     if let Some(embedding_json) = item.get("embedding") {
                                         if let Ok(job_emb) = serde_json::from_value::<Vec<f32>>(
@@ -699,13 +692,22 @@ pub async fn handle_search_v2(
                                             let empty_json = serde_json::json!({});
                                             let profile_meta =
                                                 req.profile.as_ref().unwrap_or(&empty_json);
+                                            let profile_norm = profile_embedding
+                                                .as_ref()
+                                                .map(|v| {
+                                                    v.iter().map(|x| x * x).sum::<f32>().sqrt()
+                                                })
+                                                .unwrap_or(0.0);
 
                                             let score = compute_match_score(
                                                 profile_emb,
+                                                profile_norm,
                                                 &job_emb,
+                                                job_emb.iter().map(|x| x * x).sum::<f32>().sqrt(), // job norm
                                                 profile_meta,
                                                 &item,
                                                 &app_state.config,
+                                                &mut string_sim_cache,
                                             );
 
                                             match_score = (score * 10.0).round() as u8;
