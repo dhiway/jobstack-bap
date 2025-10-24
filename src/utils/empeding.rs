@@ -1,5 +1,7 @@
 use crate::config::AppConfig;
+use crate::config::MetaDataMatch;
 use serde_json::Value;
+use std::fs;
 use strsim::jaro_winkler;
 use tracing::info;
 
@@ -9,10 +11,23 @@ fn weighted_push(parts: &mut Vec<String>, text: &str, weight: usize) {
     }
 }
 
+fn load_match_score_config(path: &str) -> Vec<MetaDataMatch> {
+    let data = fs::read_to_string(path).expect("Failed to read match_score.json");
+
+    #[derive(serde::Deserialize)]
+    struct Wrapper {
+        match_score: Vec<MetaDataMatch>,
+    }
+
+    let wrapper: Wrapper = serde_json::from_str(&data).expect("Failed to parse match_score.json");
+    wrapper.match_score
+}
+
 pub fn profile_text_for_embedding(profile: &Value, config: &AppConfig) -> String {
     let mut parts = Vec::new();
+    let match_score = load_match_score_config(config.match_score_path.as_str());
 
-    for field in &config.metadata_match {
+    for field in &match_score {
         if let crate::config::MatchMode::Embed = field.match_mode {
             if let Some(value) = profile.pointer(&field.profile_path) {
                 let weight = field.weight.unwrap_or(1);
@@ -35,9 +50,11 @@ pub fn profile_text_for_embedding(profile: &Value, config: &AppConfig) -> String
 }
 
 pub fn job_text_for_embedding(job: &Value, config: &AppConfig) -> String {
+    let match_score = load_match_score_config(config.match_score_path.as_str());
+
     let mut parts = Vec::new();
 
-    for field in &config.metadata_match {
+    for field in &match_score {
         if let crate::config::MatchMode::Embed = field.match_mode {
             if let Some(value) = job.pointer(&field.job_path) {
                 let weight = field.weight.unwrap_or(1);
@@ -84,6 +101,7 @@ pub fn compute_match_score(
     config: &AppConfig,
 ) -> f32 {
     info!("🔍 Computing match score...");
+    let match_score = load_match_score_config(config.match_score_path.as_str());
 
     // Base cosine similarity
     let mut score = cosine_similarity(profile_emb, job_emb);
@@ -92,7 +110,7 @@ pub fn compute_match_score(
 
     let mut mismatches = 0;
 
-    for field in &config.metadata_match {
+    for field in &match_score {
         // Common values
         let profile_val = profile_meta.pointer(&field.profile_path);
         let job_val = job_meta.pointer(&field.job_path);

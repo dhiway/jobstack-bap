@@ -6,10 +6,7 @@ use crate::{
     services::payload_generator::build_beckn_payload,
     state::AppState,
     utils::{
-        empeding::{
-            compute_match_score, cosine_similarity, job_text_for_embedding,
-            profile_text_for_embedding,
-        },
+        empeding::{compute_match_score, job_text_for_embedding, profile_text_for_embedding},
         hash::generate_query_hash,
         http_client::post_json,
         search::matches_query_dynamic,

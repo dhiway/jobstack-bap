@@ -105,7 +105,7 @@ pub struct AppConfig {
     pub cache: CacheConfig,
     pub cron: CronConfig,
     pub gcp: GcpConfig,
-    pub metadata_match: Vec<MetaDataMatch>,
+    pub match_score_path: String,
 }
 
 impl AppConfig {
