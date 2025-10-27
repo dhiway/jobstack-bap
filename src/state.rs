@@ -1,18 +1,18 @@
 use dashmap::DashMap;
 use std::sync::Arc;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::oneshot;
 
 pub type OnSearchResponse = serde_json::Value;
 
 use crate::config::AppConfig;
-use redis::aio::MultiplexedConnection;
+use deadpool_redis::Pool;
 use sqlx::PgPool;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<AppConfig>,
     pub shared_state: SharedState,
-    pub redis_conn: Arc<Mutex<MultiplexedConnection>>,
+    pub redis_pool: Pool,
     pub db_pool: PgPool,
 }
 

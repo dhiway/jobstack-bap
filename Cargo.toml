@@ -26,3 +26,8 @@ tower-http = { version = "0.5", features = ["cors"] }
 tokio-cron-scheduler = "0.14.0"
 chrono-tz = "0.10.4"
 indexmap = "2.11.1"
+async-trait = "0.1.89"
+hex = "0.4.3"
+futures = "0.3.31"
+deadpool-redis = "0.22.0"
+strsim = "0.11.1"

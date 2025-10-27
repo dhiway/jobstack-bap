@@ -1,0 +1,108 @@
+{
+  "match_score": [
+    {
+      "name": "role",
+      "profile_path": "/metadata/role",
+      "job_path": "/tags/role",
+      "weight": 2,
+      "is_array": false,
+      "match_mode": "embed",
+      "penalty": 0.6
+    },
+    {
+      "name": "industry",
+      "profile_path": "/metadata/industry",
+      "job_path": "/tags/industry",
+      "weight": 1,
+      "is_array": false,
+      "match_mode": "embed",
+      "penalty": 0.75
+    },
+    {
+      "name": "location",
+      "profile_path": "/metadata/whoIAm/locationData/city",
+      "job_path": "/tags/jobProviderLocation/city",
+      "weight": 1,
+      "is_array": false,
+      "match_mode": "embed",
+      "penalty": 0.95
+    },
+    {
+      "name": "iti_specialization",
+      "profile_path": "/metadata/whatIHave/itiSpecialization",
+      "job_path": "/tags/jobNeeds/educationSubsection/itiSpecialtyPreference",
+      "weight": 1,
+      "is_array": true,
+      "match_mode": "embed",
+      "penalty": 0.9
+    },
+    {
+      "name": "languages",
+      "profile_path": "/metadata/whatIHave/languagesKnown",
+      "job_path": "/tags/jobNeeds/languageSubsection/languageKnown",
+      "weight": 1,
+      "is_array": true,
+      "match_mode": "embed",
+      "penalty": 0.9
+    },
+    {
+      "name": "highest_qualification",
+      "profile_path": "/metadata/whatIHave/highestEducation",
+      "job_path": "/tags/jobNeeds/highestQualificationSubsection/highestQualification",
+      "weight": 1,
+      "is_array": true,
+      "match_mode": "embed",
+      "penalty": 0.9,
+      "bonus": 1.0,
+      "embedding_only": true
+    },
+    {
+      "name": "software_skills",
+      "profile_path": "/metadata/whatIHave/softwareSkills",
+      "job_path": "/tags/jobNeeds/highestQualificationSubsection/softwareKnowledgePreferred",
+      "weight": 1,
+      "is_array": true,
+      "match_mode": "embed",
+      "penalty": 0.9,
+      "bonus": 1.0,
+      "embedding_only": true
+    },
+    {
+      "name": "preferred_work_mode",
+      "profile_path": "/metadata/whatIWant/preferredWorkMode",
+      "job_path": "/tags/jobDetails/modeOfWork",
+      "weight": 1,
+      "is_array": true,
+      "match_mode": "embed",
+      "penalty": 0.7,
+      "embedding_only": true
+    },
+    {
+      "name": "age",
+      "profile_path": "/metadata/whoIAm/age",
+      "job_path_min": "/tags/jobNeeds/ageAllowedLowerLimit",
+      "job_path_max": "/tags/jobNeeds/ageAllowedUpperLimit",
+      "match_mode": "manual",
+      "penalty": 0.7,
+      "bonus": 1.05
+    },
+    {
+      "name": "monthly_in_hand",
+      "profile_path": "/metadata/whatIWant/monthlyInHandPreferred",
+      "job_path_min": "/tags/jobDetails/minMonthlyInHand",
+      "job_path_max": "/tags/jobDetails/maxMonthlyInHand",
+      "match_mode": "manual",
+      "penalty": 0.7,
+      "bonus": 1.05
+    },
+    {
+      "name": "work_hours_per_day",
+      "profile_path": "/metadata/whatIWant/workHoursPerDay",
+      "job_path_min": "/tags/jobDetails/workingHoursPerDay",
+      "job_path_max": "/tags/jobDetails/workingHoursPerDay",
+      "match_mode": "manual",
+      "penalty": 0.8,
+      "bonus": 1.05
+    }
+  ]
+}
