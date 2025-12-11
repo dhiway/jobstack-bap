@@ -3,8 +3,8 @@ version: '3.8'
 services:
   bap-app:
     build: .
-    image: bap-onest-lite
-    container_name: bap-onest-lite
+    image: bap-onest-lite-mca
+    container_name: bap-onest-lite-mca
     depends_on:
       redis:
         condition: service_healthy
@@ -23,7 +23,7 @@ services:
 
   redis:
     image: redis:7.2
-    container_name: bap-redis
+    container_name: bap-redis-mca
     ports:
       - "${REDIS_PORT}:6379"
     restart: unless-stopped
@@ -35,7 +35,7 @@ services:
 
   db:
     image: postgres:16
-    container_name: bap-postgres
+    container_name: bap-postgres-mca
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
