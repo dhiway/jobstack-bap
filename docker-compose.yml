@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  bap-app:
+  bap-app-mca:
     build: .
     image: bap-onest-lite-mca
     container_name: bap-onest-lite-mca
     depends_on:
-      redis:
+      redis-mca:
         condition: service_healthy
-      db:
+      db-mca:
         condition: service_healthy
     volumes:
       - ./config:/app/config
@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     command: ["./bap-onest-lite", "${CONFIG_FILE}"]
 
-  redis:
+  redis-mca:
     image: redis:7.2
     container_name: bap-redis-mca
     ports:
@@ -33,7 +33,7 @@ services:
       timeout: 3s
       retries: 5
 
-  db:
+  db-mca:
     image: postgres:16
     container_name: bap-postgres-mca
     environment:
@@ -48,9 +48,9 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - onest-bap-lite_postgres_data:/var/lib/postgresql/data
+      - mca-onest-bap-lite_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
 volumes:
-  onest-bap-lite_postgres_data:
+  mca-onest-bap-lite_postgres_data:
     external: true
