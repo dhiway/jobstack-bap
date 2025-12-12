@@ -360,7 +360,7 @@ pub async fn handle_cron_on_search(
                 &message_id,
                 &message,
                 "search",
-                None,
+                Some(&bpp_id),
                 None,
             );
 
