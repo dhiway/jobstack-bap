@@ -4,15 +4,12 @@ use crate::{
     http::routes::create_routes,
     state::{AppState, SharedState},
 };
-use redis::Client;
 use sqlx::PgPool;
 use std::sync::Arc;
-use tokio::{
-    net::TcpListener,
-    sync::{watch, Mutex},
-    task::JoinHandle,
-};
+use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 use tracing::info;
+
+use deadpool_redis::{Config as RedisConfig, Runtime};
 
 pub async fn start_http_server(
     config: AppConfig,
@@ -27,30 +24,27 @@ pub async fn start_http_server(
 
     let shared_state = SharedState::default();
 
-    let redis_client = Client::open(config.redis.url.as_str())?;
-    let redis_conn = redis_client
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|e| {
-            tracing::error!("❌ Redis connection failed: {}", e);
-            e
-        })?;
+    let redis_cfg = RedisConfig::from_url(config.redis.url.as_str());
+    let redis_pool = redis_cfg.create_pool(Some(Runtime::Tokio1))?;
 
     // Test Redis connection
     {
-        let mut test_conn = redis_client.get_multiplexed_async_connection().await?;
-        let pong: String = redis::cmd("PING").query_async(&mut test_conn).await?;
+        let mut conn = redis_pool.get().await?;
+        let pong: String = redis::cmd("PING").query_async(&mut conn).await?;
         info!("✅ Redis PING -> {}", pong);
     }
 
+    // --- Postgres pool ---
     let db_pool = PgPool::connect(&config.db.url).await?;
     info!("✅ connected to db at {}", &config.db.url);
+
     let app_state = AppState {
         config: Arc::new(config.clone()),
         shared_state,
-        redis_conn: Arc::new(Mutex::new(redis_conn)),
+        redis_pool,
         db_pool,
     };
+
     let _scheduler = start_cron_jobs(app_state.clone()).await;
 
     let http_server = tokio::spawn(run_http_server(listener, shutdown_rx, app_state));
