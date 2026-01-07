@@ -6,7 +6,7 @@ services:
     image: bap-onest-lite
     container_name: bap-onest-lite
     depends_on:
-      redis:
+      redis-up:
         condition: service_healthy
       db:
         condition: service_healthy
@@ -21,9 +21,9 @@ services:
     restart: unless-stopped
     command: ["./bap-onest-lite", "${CONFIG_FILE}"]
 
-  redis:
+  redis-up:
     image: redis:7.2
-    container_name: bap-redis
+    container_name: redis-up
     ports:
       - "${REDIS_PORT}:6379"
     restart: unless-stopped
@@ -48,9 +48,9 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - onest-bap-lite_postgres_data:/var/lib/postgresql/data
+      - up-onest-bap-lite_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
 volumes:
-  onest-bap-lite_postgres_data:
-    external: true
+  up-onest-bap-lite_postgres_data:
+    external: false
