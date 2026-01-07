@@ -76,3 +76,25 @@ pub fn matches_query_dynamic(provider_name: &str, item: &JsonValue, qf: &str) ->
 
     false
 }
+
+pub fn matches_exclude(item: &JsonValue, excludes: &[String]) -> bool {
+    if excludes.is_empty() {
+        return false;
+    }
+
+    let role = item
+        .pointer("/tags/role")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let industry = item
+        .pointer("/tags/industry")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    excludes
+        .iter()
+        .any(|ex| role.contains(ex) || industry.contains(ex))
+}

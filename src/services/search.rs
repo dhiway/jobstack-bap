@@ -9,7 +9,7 @@ use crate::{
         empeding::{compute_match_score, job_text_for_embedding, profile_text_for_embedding},
         hash::generate_query_hash,
         http_client::post_json,
-        search::matches_query_dynamic,
+        search::{matches_exclude, matches_query_dynamic},
     },
 };
 use axum::{extract::State, http::StatusCode, Json};
@@ -508,7 +508,7 @@ pub async fn handle_cron_on_search(
                 &message_id,
                 &message,
                 "search",
-                None,
+                Some(&bpp_id),
                 None,
             );
 
@@ -603,6 +603,11 @@ pub async fn handle_search_v2(
         .as_ref()
         .map(|r| r.split(',').map(|s| s.trim().to_lowercase()).collect())
         .unwrap_or_default();
+    let exclude_filters: Vec<String> = req
+        .exclude
+        .as_ref()
+        .map(|e| e.split(',').map(|s| s.trim().to_lowercase()).collect())
+        .unwrap_or_default();
 
     // ✅ Compute embedding for profile
     let profile_embedding: Option<Vec<f32>> = if let Some(profile) = &req.profile {
@@ -664,6 +669,9 @@ pub async fn handle_search_v2(
                                 if !primary_filters.is_empty()
                                     && !primary_filters.iter().any(|pf| role_name.contains(pf))
                                 {
+                                    continue;
+                                }
+                                if matches_exclude(item, &exclude_filters) {
                                     continue;
                                 }
 
