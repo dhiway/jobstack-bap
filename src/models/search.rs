@@ -95,6 +95,7 @@ pub struct SearchRequestV2 {
     pub limit: Option<u32>,
     pub primary_filters: Option<String>,
     pub profile: Option<serde_json::Value>,
+    pub exclude: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
