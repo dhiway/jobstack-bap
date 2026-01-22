@@ -6,8 +6,7 @@ use reqwest::header;
 use tracing::{error, info};
 
 use serde::Deserialize;
-use serde_json::Value;
-
+use serde_json::{json, Value};
 #[derive(Debug, Deserialize)]
 struct ProfilesApiResponse {
     data: Vec<ApiProfile>,
@@ -52,6 +51,23 @@ fn compute_profile_hash(profile: &ApiProfile) -> String {
     hex::encode(result)
 }
 
+fn build_beckn_structure(profile_id: &str, metadata: &Value) -> Value {
+    let name = metadata
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+
+    json!({
+        "id": profile_id,
+        "descriptor": {
+            "name": name
+        },
+        "tags": {
+            "profile": metadata
+        }
+    })
+}
+
 pub async fn run(app_state: AppState) {
     info!(target: "cron", "🔄 Starting fetch profiles cron");
     let sync_started_at: DateTime<Utc> = Utc::now();
@@ -84,14 +100,18 @@ pub async fn run(app_state: AppState) {
         let profiles: Vec<NewProfile> = response
             .data
             .iter()
-            .map(|p| NewProfile {
-                profile_id: p.id.clone(),
-                user_id: p.user_id.clone(),
-                r#type: p.r#type.clone(),
-                metadata: Some(p.metadata.clone()),
-                beckn_structure: None,
-                hash: compute_profile_hash(p),
-                last_synced_at: sync_started_at,
+            .map(|p| {
+                let beckn_structure = build_beckn_structure(&p.id, &p.metadata);
+
+                NewProfile {
+                    profile_id: p.id.clone(),
+                    user_id: p.user_id.clone(),
+                    r#type: p.r#type.clone(),
+                    metadata: Some(p.metadata.clone()),
+                    beckn_structure: Some(beckn_structure),
+                    hash: compute_profile_hash(p),
+                    last_synced_at: sync_started_at,
+                }
             })
             .collect();
 
