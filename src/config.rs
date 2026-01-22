@@ -93,6 +93,16 @@ pub enum MatchMode {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CronConfig {
     pub fetch_jobs: JobSchedule,
+    pub fetch_profiles: JobSchedule,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BackendServiceConfig {
+    pub base_url: String,
+    pub api_key: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ServicesConfig {
+    pub seeker: BackendServiceConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -106,6 +116,7 @@ pub struct AppConfig {
     pub cron: CronConfig,
     pub gcp: GcpConfig,
     pub match_score_path: String,
+    pub services: ServicesConfig,
 }
 
 impl AppConfig {
