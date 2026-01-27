@@ -4,10 +4,7 @@ use tracing::{error, info};
 pub async fn post_json(url: &str, payload: Value) -> anyhow::Result<()> {
     let client = Client::new();
     let res = client.post(url).json(&payload).send().await?;
-    info!(
-        "Sending POST request to {} with payload: {:?}",
-        url, payload
-    );
+    info!("Sending POST request to {} ", url);
 
     if res.status().is_success() {
         println!("ok response");
