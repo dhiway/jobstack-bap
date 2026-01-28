@@ -3,4 +3,6 @@ pub mod empeding;
 pub mod hash;
 pub mod http_client;
 pub mod logging;
+pub mod profiles;
 pub mod search;
+pub mod shared;

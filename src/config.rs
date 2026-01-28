@@ -18,6 +18,15 @@ pub struct Bap {
     pub version: String,
     pub ttl: String,
 }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Bpp {
+    pub id: String,
+    pub caller_uri: String,
+    pub domain: String,
+    pub version: String,
+    pub ttl: String,
+    pub catalog_name: String,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RedisConfig {
@@ -38,6 +47,10 @@ pub struct CacheConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobSchedule {
+    pub seconds: u64,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProfileSchedule {
     pub seconds: u64,
 }
 
@@ -93,7 +106,7 @@ pub enum MatchMode {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CronConfig {
     pub fetch_jobs: JobSchedule,
-    pub fetch_profiles: JobSchedule,
+    pub fetch_profiles: ProfileSchedule,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BackendServiceConfig {
@@ -117,6 +130,7 @@ pub struct AppConfig {
     pub gcp: GcpConfig,
     pub match_score_path: String,
     pub services: ServicesConfig,
+    pub bpp: Bpp,
 }
 
 impl AppConfig {
