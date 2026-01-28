@@ -1,7 +1,7 @@
 use crate::models::search::Pagination;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{query, Error, PgPool};
+use sqlx::{query, query_scalar, Error, PgPool, Row};
 use tracing::info;
 
 pub struct PaginatedItems {
@@ -122,14 +122,14 @@ pub async fn delete_stale_profiles(
     pool: &PgPool,
     synced_at: DateTime<Utc>,
 ) -> Result<u64, sqlx::Error> {
-    let result = query!(
+    let result = query(
         r#"
-        DELETE FROM profiles
-        WHERE last_synced_at IS NOT NULL
-          AND last_synced_at < $1
-        "#,
-        synced_at
+    DELETE FROM profiles
+    WHERE last_synced_at IS NOT NULL
+      AND last_synced_at < $1
+    "#,
     )
+    .bind(synced_at)
     .execute(pool)
     .await?;
 
@@ -149,18 +149,18 @@ pub async fn fetch_beckn_profile_items(
     );
 
     // ---- total count ----
-    let total = sqlx::query_scalar!(
+    let total: i64 = query_scalar(
         r#"
-        SELECT COUNT(*) as "count!"
+        SELECT COUNT(*) 
         FROM profiles
         WHERE beckn_structure IS NOT NULL
-        "#
+        "#,
     )
     .fetch_one(db_pool)
     .await?;
 
     // ---- paginated data ----
-    let rows = sqlx::query!(
+    let rows = sqlx::query(
         r#"
         SELECT beckn_structure
         FROM profiles
@@ -169,15 +169,19 @@ pub async fn fetch_beckn_profile_items(
         LIMIT $1
         OFFSET $2
         "#,
-        limit as i64,
-        offset as i64
     )
+    .bind(limit as i64)
+    .bind(offset as i64)
     .fetch_all(db_pool)
     .await?;
 
     let items = rows
         .into_iter()
-        .filter_map(|r| r.beckn_structure)
+        .filter_map(|r| {
+            r.try_get::<Option<Value>, _>("beckn_structure")
+                .ok()
+                .flatten()
+        })
         .collect::<Vec<_>>();
 
     Ok(PaginatedItems { items, total })
