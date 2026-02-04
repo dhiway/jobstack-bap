@@ -53,6 +53,10 @@ pub struct JobSchedule {
 pub struct ProfileSchedule {
     pub seconds: u64,
 }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MatchScoreSchedule {
+    pub seconds: u64,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GcpConfig {
@@ -107,6 +111,7 @@ pub enum MatchMode {
 pub struct CronConfig {
     pub fetch_jobs: JobSchedule,
     pub fetch_profiles: ProfileSchedule,
+    pub compute_match_scores: MatchScoreSchedule,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BackendServiceConfig {
