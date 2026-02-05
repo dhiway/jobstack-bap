@@ -71,7 +71,7 @@ pub async fn calculate_match_score(app_state: &AppState) {
                 batch.len()
             );
 
-            recompute_stale_matches(&app_state.db_pool, batch).await;
+            recompute_stale_matches(&app_state, batch).await;
         }
     }
 
@@ -94,7 +94,7 @@ pub async fn calculate_match_score(app_state: &AppState) {
                 batch.len()
             );
 
-            process_new_jobs(&app_state.db_pool, batch).await;
+            process_new_jobs(&app_state, batch).await;
         }
     }
 
@@ -117,7 +117,7 @@ pub async fn calculate_match_score(app_state: &AppState) {
                 batch.len()
             );
 
-            process_new_profiles(&app_state.db_pool, batch).await;
+            process_new_profiles(&app_state, batch).await;
         }
     }
 
@@ -129,9 +129,9 @@ pub async fn calculate_match_score(app_state: &AppState) {
     );
 }
 
-pub async fn recompute_stale_matches(db_pool: &PgPool, stale_matches: Vec<StaleMatchRow>) {
+pub async fn recompute_stale_matches(app_state: &AppState, stale_matches: Vec<StaleMatchRow>) {
     for pair in stale_matches {
-        let job = match fetch_job_by_id(db_pool, pair.job_id).await {
+        let job = match fetch_job_by_id(&app_state.db_pool, pair.job_id).await {
             Ok(j) => j,
             Err(e) => {
                 tracing::error!("failed to fetch job {}: {:?}", pair.job_id, e);
@@ -139,7 +139,7 @@ pub async fn recompute_stale_matches(db_pool: &PgPool, stale_matches: Vec<StaleM
             }
         };
 
-        let profile = match fetch_profile_by_id(db_pool, pair.profile_id).await {
+        let profile = match fetch_profile_by_id(&app_state.db_pool, pair.profile_id).await {
             Ok(p) => p,
             Err(e) => {
                 tracing::error!("failed to fetch profile {}: {:?}", pair.profile_id, e);
@@ -147,7 +147,7 @@ pub async fn recompute_stale_matches(db_pool: &PgPool, stale_matches: Vec<StaleM
             }
         };
 
-        compute_and_upsert(db_pool, &job, &profile, "stale").await;
+        compute_and_upsert(app_state, &job, &profile, "stale").await;
         info!(
             "✅ finished stale match job={} profile={}",
             job.id, profile.id
@@ -155,12 +155,12 @@ pub async fn recompute_stale_matches(db_pool: &PgPool, stale_matches: Vec<StaleM
     }
 }
 
-pub async fn process_new_jobs(db_pool: &PgPool, new_jobs: Vec<JobLiteRow>) {
+pub async fn process_new_jobs(app_state: &AppState, new_jobs: Vec<JobLiteRow>) {
     if new_jobs.is_empty() {
         return;
     }
 
-    let profiles = match fetch_all_profiles(db_pool).await {
+    let profiles = match fetch_all_profiles(&app_state.db_pool).await {
         Ok(p) => p,
         Err(e) => {
             tracing::error!("failed to fetch profiles: {:?}", e);
@@ -175,7 +175,7 @@ pub async fn process_new_jobs(db_pool: &PgPool, new_jobs: Vec<JobLiteRow>) {
     );
 
     for lite_job in new_jobs {
-        let job = match fetch_job_by_id(db_pool, lite_job.id).await {
+        let job = match fetch_job_by_id(&app_state.db_pool, lite_job.id).await {
             Ok(j) => j,
             Err(e) => {
                 tracing::error!("failed to fetch job {}: {:?}", lite_job.id, e);
@@ -184,19 +184,19 @@ pub async fn process_new_jobs(db_pool: &PgPool, new_jobs: Vec<JobLiteRow>) {
         };
 
         for profile in &profiles {
-            compute_and_upsert(db_pool, &job, profile, "new_job").await;
+            compute_and_upsert(app_state, &job, profile, "new_job").await;
         }
 
         info!("✅ finished job {}", job.id);
     }
 }
 
-pub async fn process_new_profiles(db_pool: &PgPool, new_profiles: Vec<ProfileLiteRow>) {
+pub async fn process_new_profiles(app_state: &AppState, new_profiles: Vec<ProfileLiteRow>) {
     if new_profiles.is_empty() {
         return;
     }
 
-    let jobs = match fetch_all_jobs(db_pool).await {
+    let jobs = match fetch_all_jobs(&app_state.db_pool).await {
         Ok(j) => j,
         Err(e) => {
             tracing::error!("failed to fetch jobs: {:?}", e);
@@ -211,7 +211,7 @@ pub async fn process_new_profiles(db_pool: &PgPool, new_profiles: Vec<ProfileLit
     );
 
     for lite_profile in new_profiles {
-        let profile = match fetch_profile_by_id(db_pool, lite_profile.id).await {
+        let profile = match fetch_profile_by_id(&app_state.db_pool, lite_profile.id).await {
             Ok(p) => p,
             Err(e) => {
                 tracing::error!("failed to fetch profile {}: {:?}", lite_profile.id, e);
@@ -220,7 +220,7 @@ pub async fn process_new_profiles(db_pool: &PgPool, new_profiles: Vec<ProfileLit
         };
 
         for job in &jobs {
-            compute_and_upsert(db_pool, job, &profile, "new_profile").await;
+            compute_and_upsert(app_state, job, &profile, "new_profile").await;
         }
 
         info!("✅ finished profile {}", profile.id);
@@ -228,15 +228,15 @@ pub async fn process_new_profiles(db_pool: &PgPool, new_profiles: Vec<ProfileLit
 }
 
 async fn compute_and_upsert(
-    db_pool: &PgPool,
+    app_state: &AppState,
     job: &JobRow,
     profile: &ProfileRow,
     source: &'static str,
 ) {
-    let (score, breakdown) = compute_match_score(job, profile);
+    let (score, breakdown) = compute_match_score(app_state, job, profile);
 
     if let Err(e) = upsert_match_score(
-        db_pool,
+        &app_state.db_pool,
         job.id,
         profile.id,
         &job.hash,
