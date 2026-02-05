@@ -1,6 +1,7 @@
 pub mod empeding;
 pub mod job_apply;
 pub mod job_draft;
+pub mod match_score;
 pub mod payload_generator;
 pub mod profiles;
 pub mod search;
