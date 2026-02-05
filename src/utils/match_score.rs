@@ -5,6 +5,7 @@ use crate::db::match_score::{
 };
 use crate::services::match_score::compute_match_score;
 use crate::state::AppState;
+use crate::utils::batching::chunk_vec;
 use crate::utils::logging::format_duration;
 use sqlx::PgPool;
 use std::time::Instant;
@@ -49,12 +50,76 @@ pub async fn calculate_match_score(app_state: &AppState) {
         info!("match-score: nothing to process");
         return;
     }
+    /* ---------------- stale matches (batched) ---------------- */
 
-    recompute_stale_matches(&app_state.db_pool, stale_matches).await;
+    let batch_size = app_state.config.cron.compute_match_scores.batch.max(1);
 
-    process_new_jobs(&app_state.db_pool, new_jobs).await;
+    if !stale_matches.is_empty() {
+        let stale_batches = chunk_vec(stale_matches, batch_size);
+        let stale_total = stale_batches.len();
 
-    process_new_profiles(&app_state.db_pool, new_profiles).await;
+        info!(
+            "🔁 recomputing stale matches in {} batches (batch_size={})",
+            stale_total, batch_size
+        );
+
+        for (idx, batch) in stale_batches.into_iter().enumerate() {
+            info!(
+                "➡️ processing stale batch {}/{} ({} pairs)",
+                idx + 1,
+                stale_total,
+                batch.len()
+            );
+
+            recompute_stale_matches(&app_state.db_pool, batch).await;
+        }
+    }
+
+    /* ---------------- new jobs ---------------- */
+
+    if !new_jobs.is_empty() {
+        let job_batches = chunk_vec(new_jobs, batch_size);
+        let job_total = job_batches.len();
+
+        info!(
+            "🆕 processing new jobs in {} batches (batch_size={})",
+            job_total, batch_size
+        );
+
+        for (idx, batch) in job_batches.into_iter().enumerate() {
+            info!(
+                "➡️ processing job batch {}/{} ({} jobs)",
+                idx + 1,
+                job_total,
+                batch.len()
+            );
+
+            process_new_jobs(&app_state.db_pool, batch).await;
+        }
+    }
+
+    /* ---------------- new profiles ---------------- */
+
+    if !new_profiles.is_empty() {
+        let profile_batches = chunk_vec(new_profiles, batch_size);
+        let profile_total = profile_batches.len();
+
+        info!(
+            "🆕 processing new profiles in {} batches (batch_size={})",
+            profile_total, batch_size
+        );
+
+        for (idx, batch) in profile_batches.into_iter().enumerate() {
+            info!(
+                "➡️ processing profile batch {}/{} ({} profiles)",
+                idx + 1,
+                profile_total,
+                batch.len()
+            );
+
+            process_new_profiles(&app_state.db_pool, batch).await;
+        }
+    }
 
     let elapsed = start.elapsed();
 

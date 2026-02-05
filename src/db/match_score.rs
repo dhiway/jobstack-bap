@@ -18,19 +18,19 @@ pub struct ProfileRow {
     pub beckn_structure: Option<Value>,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct JobLiteRow {
     pub id: Uuid,
     pub hash: String,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct ProfileLiteRow {
     pub id: Uuid,
     pub hash: String,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct StaleMatchRow {
     pub job_id: Uuid,
     pub profile_id: Uuid,

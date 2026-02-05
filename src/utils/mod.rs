@@ -1,3 +1,4 @@
+pub mod batching;
 pub mod cron;
 pub mod empeding;
 pub mod hash;

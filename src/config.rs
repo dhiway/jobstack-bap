@@ -56,6 +56,7 @@ pub struct ProfileSchedule {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MatchScoreSchedule {
     pub seconds: u64,
+    pub batch: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
