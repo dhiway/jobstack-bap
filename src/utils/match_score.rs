@@ -7,9 +7,8 @@ use crate::services::match_score::compute_match_score;
 use crate::state::AppState;
 use crate::utils::batching::chunk_vec;
 use crate::utils::logging::format_duration;
-use sqlx::PgPool;
 use std::time::Instant;
-use tracing::info;
+use tracing::{error, info};
 
 pub async fn calculate_match_score(app_state: &AppState) {
     let start = Instant::now();
@@ -214,7 +213,7 @@ pub async fn process_new_profiles(app_state: &AppState, new_profiles: Vec<Profil
         let profile = match fetch_profile_by_id(&app_state.db_pool, lite_profile.id).await {
             Ok(p) => p,
             Err(e) => {
-                tracing::error!("failed to fetch profile {}: {:?}", lite_profile.id, e);
+                error!("failed to fetch profile {}: {:?}", lite_profile.id, e);
                 continue;
             }
         };
@@ -246,7 +245,7 @@ async fn compute_and_upsert(
     )
     .await
     {
-        tracing::error!(
+        error!(
             source = source,
             job_id = %job.id,
             profile_id = %profile.id,

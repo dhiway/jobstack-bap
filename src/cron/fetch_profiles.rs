@@ -77,7 +77,7 @@ pub async fn run(app_state: AppState) {
     let api_key = &app_state.config.services.seeker.api_key;
 
     let mut page = 1;
-    let limit = 50;
+    let limit = 100;
 
     loop {
         let url = format!("{}/profile/all?page={}&limit={}", base_url, page, limit);

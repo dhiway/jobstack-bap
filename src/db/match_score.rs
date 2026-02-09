@@ -1,5 +1,5 @@
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::{query, query_as, query_scalar, Error, FromRow, PgPool};
 use uuid::Uuid;
 
 #[derive(Debug, FromRow)]
@@ -41,7 +41,7 @@ pub struct StaleMatchRow {
 }
 
 pub async fn fetch_new_jobs(pool: &PgPool) -> Result<Vec<JobLiteRow>, sqlx::Error> {
-    sqlx::query_as::<_, JobLiteRow>(
+    query_as::<_, JobLiteRow>(
         r#"
         SELECT j.id, j.hash
         FROM jobs j
@@ -55,7 +55,7 @@ pub async fn fetch_new_jobs(pool: &PgPool) -> Result<Vec<JobLiteRow>, sqlx::Erro
 }
 
 pub async fn fetch_new_profiles(pool: &PgPool) -> Result<Vec<ProfileLiteRow>, sqlx::Error> {
-    sqlx::query_as::<_, ProfileLiteRow>(
+    query_as::<_, ProfileLiteRow>(
         r#"
         SELECT p.id, p.hash
         FROM profiles p
@@ -69,7 +69,7 @@ pub async fn fetch_new_profiles(pool: &PgPool) -> Result<Vec<ProfileLiteRow>, sq
 }
 
 pub async fn fetch_stale_matches(pool: &PgPool) -> Result<Vec<StaleMatchRow>, sqlx::Error> {
-    sqlx::query_as::<_, StaleMatchRow>(
+    query_as::<_, StaleMatchRow>(
         r#"
         SELECT
           m.job_id,
@@ -98,7 +98,7 @@ pub async fn upsert_match_score(
     match_score: i16,
     score_breakdown: Option<Value>,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+    query!(
         r#"
         INSERT INTO job_profile_matches (
             job_id,
@@ -133,7 +133,7 @@ pub async fn upsert_match_score(
 }
 
 pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx::Error> {
-    sqlx::query_as::<_, JobRow>(
+    query_as::<_, JobRow>(
         r#"
         SELECT
             id,
@@ -153,7 +153,7 @@ pub async fn fetch_profile_by_id(
     pool: &PgPool,
     profile_id: Uuid,
 ) -> Result<ProfileRow, sqlx::Error> {
-    sqlx::query_as::<_, ProfileRow>(
+    query_as::<_, ProfileRow>(
         r#"
         SELECT
             id,
@@ -185,7 +185,7 @@ pub async fn fetch_all_jobs(pool: &PgPool) -> Result<Vec<JobRow>, sqlx::Error> {
 }
 
 pub async fn fetch_all_profiles(pool: &PgPool) -> Result<Vec<ProfileRow>, sqlx::Error> {
-    sqlx::query_as::<_, ProfileRow>(
+    query_as::<_, ProfileRow>(
         r#"
         SELECT
             id,
@@ -197,4 +197,86 @@ pub async fn fetch_all_profiles(pool: &PgPool) -> Result<Vec<ProfileRow>, sqlx::
     )
     .fetch_all(pool)
     .await
+}
+
+pub async fn fetch_jobs_with_matches(
+    db_pool: &PgPool,
+    profile_id: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> Result<Value, sqlx::Error> {
+    match profile_id {
+        Some(profile_id) => {
+            let total: i64 = query_scalar(
+                r#"
+                SELECT COUNT(*)
+                FROM job_profile_matches jpm
+                JOIN profiles p ON p.id = jpm.profile_id
+                WHERE p.profile_id = $1
+                "#,
+            )
+            .bind(profile_id)
+            .fetch_one(db_pool)
+            .await?;
+
+            let items: Vec<Value> = sqlx::query_scalar(
+                r#"
+                SELECT jsonb_build_object(
+                    'job', to_jsonb(j.*),
+                    'profile_id', p.profile_id,
+                    'match_score', jpm.match_score
+                )
+                FROM job_profile_matches jpm
+                JOIN jobs j ON j.id = jpm.job_id
+                JOIN profiles p ON p.id = jpm.profile_id
+                WHERE p.profile_id = $1
+                ORDER BY jpm.match_score DESC, j.id ASC
+                LIMIT $2 OFFSET $3
+                "#,
+            )
+            .bind(profile_id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(db_pool)
+            .await?;
+
+            Ok(serde_json::json!({
+                "total": total,
+                "items": items
+            }))
+        }
+
+        None => {
+            let total: i64 = query_scalar(
+                r#"
+                SELECT COUNT(*)
+                FROM jobs
+                "#,
+            )
+            .fetch_one(db_pool)
+            .await?;
+
+            let items: Vec<Value> = query_scalar(
+                r#"
+                SELECT jsonb_build_object(
+                    'job', to_jsonb(j.*),
+                    'profile_id', NULL,
+                    'match_score', NULL
+                )
+                FROM jobs j
+                ORDER BY j.created_at DESC, j.id ASC
+                LIMIT $1 OFFSET $2
+                "#,
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(db_pool)
+            .await?;
+
+            Ok(serde_json::json!({
+                "total": total,
+                "items": items
+            }))
+        }
+    }
 }

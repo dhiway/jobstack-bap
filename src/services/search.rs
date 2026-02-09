@@ -1,4 +1,7 @@
-use crate::db::job::{delete_stale_jobs, store_jobs};
+use crate::db::{
+    job::{delete_stale_jobs, store_jobs},
+    match_score::fetch_jobs_with_matches,
+};
 use crate::models::search::SearchRequestV2;
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use crate::services::empeding::{EmbeddingService, GcpEmbeddingService};
@@ -820,7 +823,7 @@ pub async fn handle_search_v2(
     Ok(Json(response))
 }
 
-pub async fn handle_on_search_v2(
+pub async fn handle_cron_on_search_v2(
     app_state: &AppState,
     payload: &WebhookPayload,
     txn_id: &str,
@@ -914,4 +917,38 @@ pub async fn handle_on_search_v2(
     }
 
     return ack();
+}
+
+pub async fn handle_search_v3(
+    State(app_state): State<AppState>,
+    Json(req): Json<SearchRequestV2>,
+) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
+    let limit = req.limit.unwrap_or(20) as i64;
+    let page = req.page.unwrap_or(1).max(1) as i64;
+    let offset = (page - 1) * limit;
+    let profile_id = req
+        .profile
+        .as_ref()
+        .and_then(|p| p.get("id"))
+        .and_then(|v| v.as_str());
+
+    let data = fetch_jobs_with_matches(&app_state.db_pool, profile_id, limit, offset)
+        .await
+        .map_err(|err| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": "Failed to fetch jobs",
+                    "details": err.to_string()
+                })),
+            )
+        })?;
+
+    Ok(Json(json!({
+        "status": "ok",
+        "page": page,
+        "limit": limit,
+        "data": data
+    })))
 }
