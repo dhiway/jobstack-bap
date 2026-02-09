@@ -1,5 +1,5 @@
 use serde_json::Value;
-use sqlx::{query, query_as, query_scalar, Error, FromRow, PgPool};
+use sqlx::{query, query_as, query_scalar, FromRow, PgPool};
 use uuid::Uuid;
 
 #[derive(Debug, FromRow)]
