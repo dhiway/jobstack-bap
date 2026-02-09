@@ -8,7 +8,9 @@ use crate::{
     services::payload_generator::build_beckn_payload,
     state::AppState,
     utils::{
-        empeding::{compute_match_score, job_text_for_embedding, profile_text_for_embedding},
+        empeding::{
+            compute_empeding_match_score, job_text_for_embedding, profile_text_for_embedding,
+        },
         hash::generate_query_hash,
         http_client::post_json,
         search::{
@@ -712,7 +714,7 @@ pub async fn handle_search_v2(
                                                 })
                                                 .unwrap_or(0.0);
 
-                                            let score = compute_match_score(
+                                            let score = compute_empeding_match_score(
                                                 profile_emb,
                                                 profile_norm,
                                                 &job_emb,

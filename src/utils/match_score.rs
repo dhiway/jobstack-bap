@@ -233,7 +233,7 @@ async fn compute_and_upsert(
     profile: &ProfileRow,
     source: &'static str,
 ) {
-    let (score, breakdown) = compute_match_score(app_state, job, profile);
+    let (score, breakdown) = compute_match_score(app_state, job, profile).await;
 
     if let Err(e) = upsert_match_score(
         &app_state.db_pool,

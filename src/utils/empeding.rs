@@ -100,7 +100,7 @@ pub fn cosine_similarity_with_norm(vec_a: &[f32], vec_b: &[f32], norm_a: f32, no
 }
 
 /// Compute final match score combining embedding cosine and manual numeric fields
-pub fn compute_match_score(
+pub fn compute_empeding_match_score(
     profile_emb: &[f32],
     profile_norm: f32,
     job_emb: &[f32],
