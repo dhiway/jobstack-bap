@@ -1,3 +1,4 @@
+use crate::cron::job_profile_match;
 use crate::db::profiles::{delete_stale_profiles, store_profiles, NewProfile};
 use crate::state::AppState;
 use crate::utils::http_client::get_json;
@@ -77,7 +78,8 @@ pub async fn run(app_state: AppState) {
     let api_key = &app_state.config.services.seeker.api_key;
 
     let mut page = 1;
-    let limit = 50;
+    let limit = 100;
+    let mut sync_completed = true;
 
     loop {
         let url = format!("{}/profile/all?page={}&limit={}", base_url, page, limit);
@@ -86,9 +88,17 @@ pub async fn run(app_state: AppState) {
         headers.insert("x-api-key", header::HeaderValue::from_str(api_key).unwrap());
 
         let response: ProfilesApiResponse = match get_json(&url, headers).await {
-            Ok(v) => serde_json::from_value(v).unwrap(),
+            Ok(v) => match serde_json::from_value(v) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    error!("❌ Failed to parse profiles response: {:?}", e);
+                    sync_completed = false;
+                    break;
+                }
+            },
             Err(e) => {
                 error!("❌ Failed to fetch profiles: {:?}", e);
+                sync_completed = false;
                 break;
             }
         };
@@ -117,6 +127,7 @@ pub async fn run(app_state: AppState) {
 
         if let Err(e) = store_profiles(&app_state.db_pool, &profiles).await {
             error!("❌ Failed to store profiles: {:?}", e);
+            sync_completed = false;
             break;
         }
 
@@ -128,17 +139,27 @@ pub async fn run(app_state: AppState) {
         page += 1;
     }
 
-    match delete_stale_profiles(&app_state.db_pool, sync_started_at).await {
-        Ok(count) => {
-            info!(
-                target: "cron",
-                "🧹 Deleted {} stale profiles",
-                count
-            );
+    if sync_completed {
+        match delete_stale_profiles(&app_state.db_pool, sync_started_at).await {
+            Ok(count) => {
+                info!(target: "cron", "🧹 Deleted {} stale profiles", count);
+            }
+            Err(e) => {
+                error!("❌ Failed to delete stale profiles: {:?}", e);
+            }
         }
-        Err(e) => {
-            error!("❌ Failed to delete stale profiles: {:?}", e);
-        }
+        info!(target: "cron", "🔗 Triggering job-profile match scoring...");
+        tokio::spawn({
+            let state = app_state.clone();
+            async move {
+                job_profile_match::run(state).await;
+            }
+        });
+    } else {
+        info!(
+            target: "cron",
+            "⚠️ Profile sync did not complete successfully — skipping stale profile cleanup & match scoring"
+        );
     }
 
     info!(target: "cron", "✅ Fetch profiles cron completed successfully");

@@ -5,7 +5,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 
 mod fetch_jobs;
 mod fetch_profiles;
-
+pub mod job_profile_match;
 pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
     let scheduler = JobScheduler::new().await.unwrap();
 
@@ -28,9 +28,9 @@ pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
         let state = state.clone();
         tokio::spawn(async move {
             tracing::info!(
-                "🚀 Server restarted, waiting 30 seconds before first fetch_profiles..."
+                "🚀 Server restarted, waiting 15 seconds before first fetch_profiles..."
             );
-            sleep(Duration::from_secs(10)).await;
+            sleep(Duration::from_secs(15)).await;
 
             tracing::info!("👤 Running initial fetch_profiles...");
             fetch_profiles::run(state).await;

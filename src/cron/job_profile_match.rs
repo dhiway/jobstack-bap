@@ -1,11 +1,11 @@
 use crate::state::AppState;
-use crate::utils::search::send_open_jobs_search;
+use crate::utils::match_score::calculate_match_score;
 use tracing::info;
 
 pub async fn run(app_state: AppState) {
     info!(target: "cron", "╔════════════════════════════════════════════╗");
-    info!(target: "cron", "║   🔄 Starting fetch jobs cron.             ║");
+    info!(target: "cron", "║   🔄 starting match score cron.             ║");
     info!(target: "cron", "╚════════════════════════════════════════════╝");
 
-    send_open_jobs_search(&app_state, 1, 30, "cron", None, None, None).await;
+    calculate_match_score(&app_state).await;
 }

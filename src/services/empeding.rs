@@ -29,24 +29,34 @@ impl EmbeddingService for GcpEmbeddingService {
         conn: &mut redis::aio::MultiplexedConnection,
         app_state: &AppState,
     ) -> Result<Vec<f32>> {
+        if text.trim().is_empty() {
+            info!("⚠️ Skipping embedding generation: input text is empty");
+            return Ok(vec![]);
+        }
         let mut hasher = Sha256::new();
         hasher.update(text.as_bytes());
         let hash = hex::encode(hasher.finalize());
+
         let cache_key = format!("embedding:{}:{}", app_state.config.gcp.model, hash);
-        info!("🔑 Cache key for embedding: {}", cache_key);
+
+        info!(
+            "🔑 Embedding request | chars={} | cache_key={}",
+            text.len(),
+            cache_key
+        );
 
         match conn.get::<_, Option<String>>(&cache_key).await {
             Ok(Some(cached)) => {
                 if let Ok(vec) = serde_json::from_str::<Vec<f32>>(&cached) {
-                    info!("✅ Cache hit for text: {}", text);
+                    info!("✅ Embedding cache hit");
                     return Ok(vec);
+                } else {
+                    info!("⚠️ Failed to deserialize cached embedding, refetching");
                 }
             }
-            Ok(None) => info!("❌ Cache miss for text: {}", text),
-            Err(e) => error!("❌ Redis get error for key {}: {:?}", cache_key, e),
+            Ok(None) => info!("❌ Embedding cache miss"),
+            Err(e) => error!("❌ Redis get error: {:?}", e),
         }
-
-        info!("🚀 Fetching embedding from GCP for text: {}", text);
 
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:embedContent",
@@ -55,10 +65,14 @@ impl EmbeddingService for GcpEmbeddingService {
 
         let body = serde_json::json!({
             "model": format!("models/{}", app_state.config.gcp.model),
-            "content": { "parts": [{ "text": text }] }
+            "content": {
+                "parts": [
+                    { "text": text }
+                ]
+            }
         });
 
-        info!("🔍 Calling GCP Embedding API for text: {}", text);
+        info!("🚀 Fetching embedding from GCP");
 
         let client = reqwest::Client::new();
         let resp = client
@@ -68,15 +82,24 @@ impl EmbeddingService for GcpEmbeddingService {
             .send()
             .await?;
 
-        info!("Embedding API response status: {}", resp.status());
+        let status = resp.status();
+        info!("📡 GCP embedding response status: {}", status);
 
         let json_resp: Value = resp.json().await?;
+
+        if !status.is_success() {
+            error!("❌ GCP embedding API error response: {:?}", json_resp);
+            return Err(anyhow::anyhow!(
+                "GCP embedding API failed with status {}",
+                status
+            ));
+        }
 
         let embedding_values = json_resp
             .get("embedding")
             .and_then(|e| e.get("values"))
             .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow::anyhow!("Missing embedding in response"))?;
+            .ok_or_else(|| anyhow::anyhow!("Missing embedding.values in GCP response"))?;
 
         let embedding: Vec<f32> = embedding_values
             .iter()
@@ -89,7 +112,7 @@ impl EmbeddingService for GcpEmbeddingService {
         {
             error!("❌ Failed to cache embedding in Redis: {:?}", e);
         } else {
-            info!("🚀 Cached embedding for text (hashed key): {}", hash);
+            info!("💾 Cached embedding | dims={}", embedding.len());
         }
 
         Ok(embedding)
