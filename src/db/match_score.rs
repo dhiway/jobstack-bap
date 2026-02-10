@@ -98,7 +98,7 @@ pub async fn upsert_match_score(
     match_score: i16,
     score_breakdown: Option<Value>,
 ) -> Result<(), sqlx::Error> {
-    query!(
+    query(
         r#"
         INSERT INTO job_profile_matches (
             job_id,
@@ -119,13 +119,13 @@ pub async fn upsert_match_score(
             score_breakdown = EXCLUDED.score_breakdown,
             updated_at      = now()
         "#,
-        job_id,
-        profile_id,
-        job_hash,
-        profile_hash,
-        match_score,
-        score_breakdown
     )
+    .bind(job_id)
+    .bind(profile_id)
+    .bind(job_hash)
+    .bind(profile_hash)
+    .bind(match_score)
+    .bind(score_breakdown)
     .execute(pool)
     .await?;
 
