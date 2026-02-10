@@ -1,7 +1,7 @@
 use crate::db::match_score::{
-    fetch_all_jobs, fetch_all_profiles, fetch_job_by_id, fetch_new_jobs, fetch_new_profiles,
-    fetch_profile_by_id, fetch_stale_matches, upsert_match_score, JobLiteRow, JobRow,
-    ProfileLiteRow, ProfileRow, StaleMatchRow,
+    fetch_all_jobs, fetch_all_profiles, fetch_job_by_id, fetch_missing_matches, fetch_new_jobs,
+    fetch_new_profiles, fetch_profile_by_id, fetch_stale_matches, upsert_match_score, JobLiteRow,
+    JobRow, ProfileLiteRow, ProfileRow, StaleMatchRow,
 };
 use crate::services::match_score::compute_match_score;
 use crate::state::AppState;
@@ -45,10 +45,6 @@ pub async fn calculate_match_score(app_state: &AppState) {
         stale_matches.len()
     );
 
-    if new_jobs.is_empty() && new_profiles.is_empty() && stale_matches.is_empty() {
-        info!("match-score: nothing to process");
-        return;
-    }
     /* ---------------- stale matches (batched) ---------------- */
 
     let batch_size = app_state.config.cron.compute_match_scores.batch.max(1);
@@ -119,6 +115,10 @@ pub async fn calculate_match_score(app_state: &AppState) {
             process_new_profiles(&app_state, batch).await;
         }
     }
+
+    /* ---------------- missing pair reconciliation ---------------- */
+
+    reconcile_missing_matches(&app_state, batch_size).await;
 
     let elapsed = start.elapsed();
 
@@ -268,4 +268,60 @@ async fn compute_and_upsert(
             "failed to upsert match score"
         );
     }
+}
+
+pub async fn reconcile_missing_matches(app_state: &AppState, batch_size: usize) {
+    let missing = match fetch_missing_matches(&app_state.db_pool).await {
+        Ok(v) => v,
+        Err(e) => {
+            error!("failed to fetch missing match pairs: {:?}", e);
+            return;
+        }
+    };
+
+    if missing.is_empty() {
+        info!("🧩 match-score reconciliation: no missing pairs found");
+        return;
+    }
+
+    let batches = chunk_vec(missing, batch_size);
+    let total = batches.len();
+
+    info!(
+        "🧩 reconciling {} missing match pairs in {} batches (batch_size={})",
+        batches.iter().map(|b| b.len()).sum::<usize>(),
+        total,
+        batch_size
+    );
+
+    for (idx, batch) in batches.into_iter().enumerate() {
+        info!(
+            "➡️ processing missing batch {}/{} ({} pairs)",
+            idx + 1,
+            total,
+            batch.len()
+        );
+
+        for pair in batch {
+            let job = match fetch_job_by_id(&app_state.db_pool, pair.job_id).await {
+                Ok(j) => j,
+                Err(e) => {
+                    error!("failed to fetch job {}: {:?}", pair.job_id, e);
+                    continue;
+                }
+            };
+
+            let profile = match fetch_profile_by_id(&app_state.db_pool, pair.profile_id).await {
+                Ok(p) => p,
+                Err(e) => {
+                    error!("failed to fetch profile {}: {:?}", pair.profile_id, e);
+                    continue;
+                }
+            };
+
+            compute_and_upsert(app_state, &job, &profile, "reconcile").await;
+        }
+    }
+
+    info!("🧩 match-score reconciliation completed");
 }

@@ -39,6 +39,11 @@ pub struct StaleMatchRow {
     pub current_job_hash: String,
     pub current_profile_hash: String,
 }
+#[derive(Debug, FromRow, Clone)]
+pub struct MissingMatchRow {
+    pub job_id: Uuid,
+    pub profile_id: Uuid,
+}
 
 pub async fn fetch_new_jobs(pool: &PgPool) -> Result<Vec<JobLiteRow>, sqlx::Error> {
     query_as::<_, JobLiteRow>(
@@ -471,4 +476,22 @@ pub async fn fetch_jobs_with_matches(
             Ok(serde_json::json!({ "total": total, "items": items }))
         }
     }
+}
+
+pub async fn fetch_missing_matches(db_pool: &PgPool) -> Result<Vec<MissingMatchRow>, sqlx::Error> {
+    query_as::<_, MissingMatchRow>(
+        r#"
+        SELECT
+            j.id AS job_id,
+            p.id AS profile_id
+        FROM jobs j
+        CROSS JOIN profiles p
+        LEFT JOIN job_profile_matches m
+            ON m.job_id = j.id
+           AND m.profile_id = p.id
+        WHERE m.job_id IS NULL
+        "#,
+    )
+    .fetch_all(db_pool)
+    .await
 }
