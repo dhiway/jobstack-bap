@@ -1,25 +1,20 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE job_profile_matches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    -- 🔗 Relations
     job_id UUID NOT NULL,
     profile_id UUID NOT NULL,
 
-    -- 🔒 Hashes to detect stale scores
     job_hash TEXT NOT NULL,
     profile_hash TEXT NOT NULL,
 
-    -- 📊 Scoring
     match_score SMALLINT NOT NULL CHECK (match_score BETWEEN 0 AND 100),
 
-    -- Optional: score breakdown (future-proofing)
     score_breakdown JSONB,
-
-    -- 🕒 Metadata
     computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    -- 🧹 Cleanup guarantees
     CONSTRAINT fk_job
         FOREIGN KEY (job_id)
         REFERENCES jobs(id)
@@ -30,7 +25,6 @@ CREATE TABLE job_profile_matches (
         REFERENCES profiles(id)
         ON DELETE CASCADE,
 
-    -- 🚫 No duplicate matches
     CONSTRAINT uniq_job_profile UNIQUE (job_id, profile_id)
 );
 
@@ -48,3 +42,18 @@ ON job_profile_matches (job_id, job_hash);
 
 CREATE INDEX idx_jpm_computed_at
 ON job_profile_matches (computed_at);
+
+CREATE UNIQUE INDEX idx_profiles_profile_id
+ON profiles (profile_id);
+
+CREATE INDEX idx_jobs_role_trgm
+ON jobs
+USING GIN ((beckn_structure #>> '{tags,role}') gin_trgm_ops);
+
+CREATE INDEX idx_jobs_name_trgm
+ON jobs
+USING GIN ((beckn_structure #>> '{descriptor,name}') gin_trgm_ops);
+
+CREATE INDEX idx_jobs_industry_trgm
+ON jobs
+USING GIN ((beckn_structure #>> '{tags,industry}') gin_trgm_ops);

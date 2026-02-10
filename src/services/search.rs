@@ -925,6 +925,7 @@ pub async fn handle_search_v3(
 ) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
     let limit = req.limit.unwrap_or(20) as i64;
     let page = req.page.unwrap_or(1).max(1) as i64;
+    let query = req.query.as_deref();
     let offset = (page - 1) * limit;
     let profile_id = req
         .profile
@@ -932,18 +933,38 @@ pub async fn handle_search_v3(
         .and_then(|p| p.get("id"))
         .and_then(|v| v.as_str());
 
-    let data = fetch_jobs_with_matches(&app_state.db_pool, profile_id, limit, offset)
-        .await
-        .map_err(|err| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "status": "error",
-                    "message": "Failed to fetch jobs",
-                    "details": err.to_string()
-                })),
-            )
-        })?;
+    let primary_filters = req
+        .primary_filters
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+
+    let exclude_filters = req
+        .exclude
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+
+    let data = fetch_jobs_with_matches(
+        &app_state.db_pool,
+        profile_id,
+        query,
+        primary_filters,
+        exclude_filters,
+        limit,
+        offset,
+    )
+    .await
+    .map_err(|err| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "status": "error",
+                "message": "Failed to fetch jobs",
+                "details": err.to_string()
+            })),
+        )
+    })?;
 
     Ok(Json(json!({
         "status": "ok",
