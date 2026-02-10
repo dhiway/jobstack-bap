@@ -167,6 +167,14 @@ pub async fn process_new_jobs(app_state: &AppState, new_jobs: Vec<JobLiteRow>) {
         }
     };
 
+    if profiles.is_empty() {
+        tracing::info!(
+            "⏭️ skipping match scoring: {} new jobs but no profiles available",
+            new_jobs.len()
+        );
+        return;
+    }
+
     info!(
         "🆕 processing {} new jobs against {} profiles",
         new_jobs.len(),
@@ -202,6 +210,13 @@ pub async fn process_new_profiles(app_state: &AppState, new_profiles: Vec<Profil
             return;
         }
     };
+    if jobs.is_empty() {
+        tracing::info!(
+            "⏭️ skipping match scoring: {} new profiles but no jobs available",
+            new_profiles.len()
+        );
+        return;
+    }
 
     info!(
         "🆕 processing {} new profiles against {} jobs",

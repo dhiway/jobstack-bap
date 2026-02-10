@@ -43,8 +43,9 @@ ON job_profile_matches (job_id, job_hash);
 CREATE INDEX idx_jpm_computed_at
 ON job_profile_matches (computed_at);
 
-CREATE UNIQUE INDEX idx_profiles_profile_id
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_profile_id
 ON profiles (profile_id);
+
 
 CREATE INDEX idx_jobs_role_trgm
 ON jobs

@@ -5,7 +5,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 
 mod fetch_jobs;
 mod fetch_profiles;
-mod job_profile_match;
+pub mod job_profile_match;
 pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
     let scheduler = JobScheduler::new().await.unwrap();
 
@@ -34,18 +34,6 @@ pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
 
             tracing::info!("👤 Running initial fetch_profiles...");
             fetch_profiles::run(state).await;
-        });
-    }
-    {
-        let state = state.clone();
-        tokio::spawn(async move {
-            tracing::info!(
-                "🚀 Server restarted, waiting 60 seconds before first match score calculation..."
-            );
-            sleep(Duration::from_secs(60)).await;
-
-            tracing::info!("👤 Running initial  match score calculation ...");
-            job_profile_match::run(state).await;
         });
     }
 
@@ -102,37 +90,6 @@ pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
                     let state = state.clone();
                     Box::pin(async move {
                         fetch_profiles::run(state).await;
-                    })
-                }
-            })
-            .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    /*
-     * ------------------------------------------------------------
-     * Compute match score cron
-     * ------------------------------------------------------------
-     */
-
-    let (match_score_desc, match_score_cron_expr) =
-        build_cron_expr(state.config.cron.compute_match_scores.seconds);
-
-    tracing::info!(
-        "📅 Scheduling job_profile_match cron: {} → {}",
-        match_score_desc,
-        match_score_cron_expr
-    );
-
-    scheduler
-        .add(
-            Job::new_async(&match_score_cron_expr, {
-                let state = state.clone();
-                move |_uuid, _l| {
-                    let state = state.clone();
-                    Box::pin(async move {
-                        job_profile_match::run(state).await;
                     })
                 }
             })

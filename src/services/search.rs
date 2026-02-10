@@ -1,3 +1,4 @@
+use crate::cron::job_profile_match;
 use crate::db::{
     job::{delete_stale_jobs, store_jobs},
     match_score::fetch_jobs_with_matches,
@@ -914,6 +915,19 @@ pub async fn handle_cron_on_search_v2(
             ),
             Err(e) => error!("Stale cleanup failed: {}", e),
         };
+
+        info!(
+            "🔗 Triggering job-profile match scoring after job pagination completion \
+        (txn_id={}, bpp_id={})",
+            txn_id, bpp_id
+        );
+
+        tokio::spawn({
+            let state = app_state.clone();
+            async move {
+                job_profile_match::run(state).await;
+            }
+        });
     }
 
     return ack();

@@ -1,3 +1,4 @@
+use crate::cron::job_profile_match;
 use crate::db::profiles::{delete_stale_profiles, store_profiles, NewProfile};
 use crate::state::AppState;
 use crate::utils::http_client::get_json;
@@ -141,20 +142,23 @@ pub async fn run(app_state: AppState) {
     if sync_completed {
         match delete_stale_profiles(&app_state.db_pool, sync_started_at).await {
             Ok(count) => {
-                info!(
-                    target: "cron",
-                    "🧹 Deleted {} stale profiles",
-                    count
-                );
+                info!(target: "cron", "🧹 Deleted {} stale profiles", count);
             }
             Err(e) => {
                 error!("❌ Failed to delete stale profiles: {:?}", e);
             }
         }
+        info!(target: "cron", "🔗 Triggering job-profile match scoring...");
+        tokio::spawn({
+            let state = app_state.clone();
+            async move {
+                job_profile_match::run(state).await;
+            }
+        });
     } else {
         info!(
             target: "cron",
-            "⚠️ Profile sync did not complete successfully — skipping stale profile cleanup"
+            "⚠️ Profile sync did not complete successfully — skipping stale profile cleanup & match scoring"
         );
     }
 
