@@ -1,11 +1,13 @@
 use crate::state::AppState;
-use crate::utils::cron::build_cron_expr;
+use crate::utils::cron::{build_cron_expr, build_notification_cron_expr};
 use tokio::time::{sleep, Duration};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 mod fetch_jobs;
 mod fetch_profiles;
+
 pub mod job_profile_match;
+mod notification;
 pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
     let scheduler = JobScheduler::new().await.unwrap();
 
@@ -90,6 +92,37 @@ pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
                     let state = state.clone();
                     Box::pin(async move {
                         fetch_profiles::run(state).await;
+                    })
+                }
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    /*
+     * ------------------------------------------------------------
+     * send notification cron
+     * ------------------------------------------------------------
+     */
+
+    let (notification_desc, notification_cron_expr) =
+        build_notification_cron_expr(&state.config.cron.notification);
+
+    tracing::info!(
+        "📅 Scheduling notification cron: {} → {}",
+        notification_desc,
+        notification_cron_expr
+    );
+
+    scheduler
+        .add(
+            Job::new_async(&notification_cron_expr, {
+                let state = state.clone();
+                move |_uuid, _l| {
+                    let state = state.clone();
+                    Box::pin(async move {
+                        notification::run(state).await;
                     })
                 }
             })

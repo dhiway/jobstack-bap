@@ -61,6 +61,24 @@ pub struct MatchScoreSchedule {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum ScheduleType {
+    Weekly,
+    Monthly,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NotificationSchedule {
+    pub schedule_type: ScheduleType,
+    pub weekday: Option<u8>, // 0-6 (for weekly)
+    pub day: Option<u8>,     // 1-31 (for monthly)
+    pub hour: u8,            // 0-23
+    pub minute: u8,          // 0-59
+    pub seconds: u8,         // 0-59
+    pub min_score: i16,
+    pub batch: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GcpConfig {
     pub project_id: String,
     pub model: String,
@@ -114,6 +132,7 @@ pub struct CronConfig {
     pub fetch_jobs: JobSchedule,
     pub fetch_profiles: ProfileSchedule,
     pub compute_match_scores: MatchScoreSchedule,
+    pub notification: NotificationSchedule,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BackendServiceConfig {
@@ -121,8 +140,16 @@ pub struct BackendServiceConfig {
     pub api_key: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NotificationServiceConfig {
+    pub base_url: String,
+    pub ns_secret: String,
+    pub ns_key_id: String,
+    pub content_sid: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServicesConfig {
     pub seeker: BackendServiceConfig,
+    pub notification: NotificationServiceConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

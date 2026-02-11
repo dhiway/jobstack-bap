@@ -45,7 +45,7 @@ pub async fn handle_select(
         Some(&req.context.bpp_uri),
     );
 
-    if let Err(e) = post_json(&adapter_url, payload).await {
+    if let Err(e) = post_json(&adapter_url, payload, None).await {
         app_state
             .shared_state
             .pending_searches

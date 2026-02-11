@@ -39,6 +39,24 @@ pub struct StaleMatchRow {
     pub current_job_hash: String,
     pub current_profile_hash: String,
 }
+#[derive(Debug, FromRow, Clone)]
+pub struct MissingMatchRow {
+    pub job_id: Uuid,
+    pub profile_id: Uuid,
+}
+
+#[derive(Debug, FromRow, Clone)]
+pub struct HighMatchRow {
+    pub job_id: uuid::Uuid,
+    pub profile_id: uuid::Uuid,
+    pub match_score: i16,
+
+    pub phone: Option<String>,
+    pub name: Option<String>,
+
+    pub role: Option<String>,
+    pub job_provider_name: Option<String>,
+}
 
 pub async fn fetch_new_jobs(pool: &PgPool) -> Result<Vec<JobLiteRow>, sqlx::Error> {
     query_as::<_, JobLiteRow>(
@@ -471,4 +489,53 @@ pub async fn fetch_jobs_with_matches(
             Ok(serde_json::json!({ "total": total, "items": items }))
         }
     }
+}
+
+pub async fn fetch_missing_matches(db_pool: &PgPool) -> Result<Vec<MissingMatchRow>, sqlx::Error> {
+    query_as::<_, MissingMatchRow>(
+        r#"
+        SELECT
+            j.id AS job_id,
+            p.id AS profile_id
+        FROM jobs j
+        CROSS JOIN profiles p
+        LEFT JOIN job_profile_matches m
+            ON m.job_id = j.id
+           AND m.profile_id = p.id
+        WHERE m.job_id IS NULL
+        "#,
+    )
+    .fetch_all(db_pool)
+    .await
+}
+
+pub async fn fetch_high_match_scores(
+    db_pool: &PgPool,
+    min_match_score: i16,
+) -> Result<Vec<HighMatchRow>, sqlx::Error> {
+    query_as::<_, HighMatchRow>(
+        r#"
+        SELECT
+            m.job_id,
+            m.profile_id,
+            m.match_score,
+
+            -- Profile metadata fields
+            p.metadata -> 'whoIAm' ->> 'phone' AS phone,
+            p.metadata -> 'whoIAm' ->> 'name' AS name,
+
+            -- Job beckn_structure fields
+            j.beckn_structure -> 'tags' ->> 'role' AS role,
+            j.beckn_structure -> 'tags' -> 'basicInfo' ->> 'jobProviderName' AS job_provider_name
+
+        FROM job_profile_matches m
+        JOIN profiles p ON p.id = m.profile_id
+        JOIN jobs j ON j.id = m.job_id
+
+        WHERE m.match_score >= $1
+        "#,
+    )
+    .bind(min_match_score)
+    .fetch_all(db_pool)
+    .await
 }

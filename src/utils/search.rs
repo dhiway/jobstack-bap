@@ -254,7 +254,7 @@ pub async fn send_open_jobs_search(
     }
 
     let adapter_url = format!("{}/search", app_state.config.bap.caller_uri);
-    if let Err(e) = post_json(&adapter_url, payload).await {
+    if let Err(e) = post_json(&adapter_url, payload, None).await {
         error!(
             "❌ Failed to send open jobs search (txn_id={}, page={}): {}",
             txn_id, page, e

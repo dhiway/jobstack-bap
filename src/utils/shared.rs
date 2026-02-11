@@ -30,7 +30,7 @@ pub async fn send_to_bpp_caller(
 
     let bpp_url = &config.bpp.caller_uri;
     let full_url = format!("{}/{}", bpp_url.trim_end_matches('/'), full_action);
-    post_json(&full_url, payload).await
+    post_json(&full_url, payload, None).await
 }
 
 pub fn ack() -> Json<AckResponse> {

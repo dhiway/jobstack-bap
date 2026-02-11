@@ -5,6 +5,7 @@ pub mod hash;
 pub mod http_client;
 pub mod logging;
 pub mod match_score;
+pub mod notification;
 pub mod profiles;
 pub mod search;
 pub mod shared;
