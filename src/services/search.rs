@@ -144,7 +144,7 @@ pub async fn handle_search(
         );
         let payload_clone = payload.clone();
         tokio::spawn(async move {
-            if let Err(e) = post_json(&adapter_url, payload_clone).await {
+            if let Err(e) = post_json(&adapter_url, payload_clone, None).await {
                 error!("❌ Failed to send search to BAP adapter: {}", e);
             }
         });
@@ -524,7 +524,7 @@ pub async fn handle_cron_on_search(
             );
 
             let adapter_url = format!("{}/search", app_state.config.bap.caller_uri);
-            if let Err(e) = post_json(&adapter_url, next_payload).await {
+            if let Err(e) = post_json(&adapter_url, next_payload, None).await {
                 error!(
                     target: "cron",
                     "❌ Failed to request next_page = {} (txn_id={}): {}",
