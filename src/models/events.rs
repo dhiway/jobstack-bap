@@ -29,4 +29,6 @@ pub struct EventResponse {
 pub enum EventType {
     #[serde(rename = "profile.updated")]
     ProfileUpdated,
+    #[serde(rename = "profile.created")]
+    ProfileCreated,
 }
