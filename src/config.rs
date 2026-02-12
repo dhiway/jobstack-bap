@@ -153,6 +153,10 @@ pub struct ServicesConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AuthConfig {
+    pub x_api_key: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     pub debug: bool,
     pub bap: Bap,
@@ -165,6 +169,7 @@ pub struct AppConfig {
     pub match_score_path: String,
     pub services: ServicesConfig,
     pub bpp: Bpp,
+    pub auth: AuthConfig,
 }
 
 impl AppConfig {
