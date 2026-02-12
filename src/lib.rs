@@ -1,6 +1,7 @@
 pub mod config;
 pub mod cron;
 pub mod db;
+pub mod events;
 pub mod http;
 pub mod models;
 pub mod services;

@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::Serialize;
+use std::sync::Arc;
 use tokio::sync::oneshot::channel;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
@@ -18,7 +19,7 @@ use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use tracing::info;
 
 pub async fn handle_status(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<StatusRequest>,
 ) -> Result<impl IntoResponse, Response> {
     let ctx = &req.context;

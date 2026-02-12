@@ -9,6 +9,7 @@ use crate::utils::http_client::post_json;
 use chrono::Utc;
 use redis::AsyncCommands;
 use serde_json::Value as JsonValue;
+use std::sync::Arc;
 use tracing::{error, info};
 use uuid::Uuid;
 pub fn matches_query_dynamic(provider_name: &str, item: &JsonValue, qf: &str) -> bool {
@@ -197,7 +198,7 @@ fn build_open_jobs_search_message(page: u32, limit: u32) -> SearchMessage {
 }
 
 pub async fn send_open_jobs_search(
-    app_state: &AppState,
+    app_state: &Arc<AppState>,
     page: u32,
     limit: u32,
     source: &str,

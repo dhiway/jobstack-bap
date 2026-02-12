@@ -1,4 +1,5 @@
 pub mod empeding;
+pub mod events;
 pub mod job_apply;
 pub mod job_draft;
 pub mod match_score;

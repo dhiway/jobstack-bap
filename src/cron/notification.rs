@@ -3,10 +3,10 @@ use crate::state::AppState;
 use crate::utils::batching::chunk_vec;
 use crate::utils::notification::send_whatsapp_notification;
 
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
-
-pub async fn run(app_state: AppState) {
+pub async fn run(app_state: Arc<AppState>) {
     info!(target: "cron", "╔════════════════════════════════════════════╗");
     info!(target: "cron", "║   🔄 Starting Notification cron.           ║");
     info!(target: "cron", "╚════════════════════════════════════════════╝");
