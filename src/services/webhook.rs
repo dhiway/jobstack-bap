@@ -15,11 +15,11 @@ use axum::{
     Json,
 };
 use serde_json::Value;
+use std::sync::Arc;
 use tracing::{debug, info};
-
 pub async fn webhook_handler(
     Path(action): Path<String>,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
     let txn_id = payload.context.transaction_id.clone();
@@ -56,7 +56,7 @@ pub async fn webhook_handler(
 
 pub async fn webhook_handler_profiles(
     Path(action): Path<String>,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
     info!(

@@ -27,12 +27,13 @@ use axum::{extract::State, http::StatusCode, Json};
 use redis::AsyncCommands;
 use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
 
 pub async fn handle_search(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<SearchRequest>,
 ) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
     let start = Instant::now();
@@ -562,7 +563,7 @@ pub async fn handle_cron_on_search(
 }
 
 pub async fn handle_search_v2(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<SearchRequestV2>,
 ) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
     let mut conn = match app_state.redis_pool.get().await {
@@ -825,7 +826,7 @@ pub async fn handle_search_v2(
 }
 
 pub async fn handle_cron_on_search_v2(
-    app_state: &AppState,
+    app_state: &Arc<AppState>,
     payload: &WebhookPayload,
     txn_id: &str,
 ) -> Json<AckResponse> {
@@ -934,7 +935,7 @@ pub async fn handle_cron_on_search_v2(
 }
 
 pub async fn handle_search_v3(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<SearchRequestV2>,
 ) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
     let limit = req.limit.unwrap_or(20) as i64;

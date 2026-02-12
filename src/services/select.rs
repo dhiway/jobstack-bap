@@ -15,10 +15,10 @@ struct ErrorResponse {
     error: String,
 }
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
+use std::sync::Arc;
 use tracing::info;
-
 pub async fn handle_select(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<SelectRequest>,
 ) -> Result<impl IntoResponse, Response> {
     let ctx = &req.context;

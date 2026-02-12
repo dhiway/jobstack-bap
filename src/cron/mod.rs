@@ -1,14 +1,14 @@
 use crate::state::AppState;
 use crate::utils::cron::{build_cron_expr, build_notification_cron_expr};
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tokio_cron_scheduler::{Job, JobScheduler};
-
 mod fetch_jobs;
 mod fetch_profiles;
 
 pub mod job_profile_match;
 mod notification;
-pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
+pub async fn start_cron_jobs(state: Arc<AppState>) -> JobScheduler {
     let scheduler = JobScheduler::new().await.unwrap();
 
     /*

@@ -4,10 +4,10 @@ use crate::state::AppState;
 use crate::utils::http_client::get_json;
 use chrono::{DateTime, Utc};
 use reqwest::header;
-use tracing::{error, info};
-
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::sync::Arc;
+use tracing::{error, info};
 #[derive(Debug, Deserialize)]
 struct ProfilesApiResponse {
     data: Vec<ApiProfile>,
@@ -69,7 +69,7 @@ fn build_beckn_structure(profile_id: &str, metadata: &Value) -> Value {
     })
 }
 
-pub async fn run(app_state: AppState) {
+pub async fn run(app_state: Arc<AppState>) {
     info!(target: "cron", "🔄 Starting fetch profiles cron");
     let sync_started_at: DateTime<Utc> = Utc::now();
     info!(target: "cron", "🕒 Sync started at {}", sync_started_at);
