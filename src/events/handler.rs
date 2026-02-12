@@ -7,6 +7,9 @@ pub async fn handle_event(event: AppEvent) -> anyhow::Result<()> {
         EventType::ProfileUpdated => {
             info!("Handle profile updated");
         }
+        EventType::ProfileCreated => {
+            info!("Handle profile created");
+        }
     }
 
     Ok(())
