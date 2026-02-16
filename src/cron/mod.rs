@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tokio_cron_scheduler::{Job, JobScheduler};
 mod fetch_jobs;
-mod fetch_profiles;
+pub mod fetch_profiles;
 
 pub mod job_profile_match;
 mod notification;
