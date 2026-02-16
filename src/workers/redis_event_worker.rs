@@ -68,7 +68,7 @@ async fn process_stream(state: &Arc<AppState>) -> RedisResult<()> {
     for stream in reply.keys {
         for message in stream.ids {
             if let Some(event) = parse_event(&message.map) {
-                if let Err(e) = handle_event(event).await {
+                if let Err(e) = handle_event(state, event).await {
                     error!("Failed to handle event: {:?}", e);
                 } else {
                     ack_message(&mut conn, &message.id).await?;

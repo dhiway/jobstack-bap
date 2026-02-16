@@ -9,13 +9,13 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::{error, info};
 #[derive(Debug, Deserialize)]
-struct ProfilesApiResponse {
-    data: Vec<ApiProfile>,
+pub struct ProfilesApiResponse {
+    pub data: Vec<ApiProfile>,
     pagination: Pagination,
 }
 
 #[derive(Debug, Deserialize)]
-struct ApiProfile {
+pub struct ApiProfile {
     pub id: String,
 
     #[serde(rename = "userId")]
@@ -37,7 +37,7 @@ struct Pagination {
     #[serde(rename = "totalCount")]
     pub total_count: u32,
 }
-fn compute_profile_hash(profile: &ApiProfile) -> String {
+pub fn compute_profile_hash(profile: &ApiProfile) -> String {
     use sha2::{Digest, Sha256};
 
     let mut hasher = Sha256::new();
@@ -52,7 +52,7 @@ fn compute_profile_hash(profile: &ApiProfile) -> String {
     hex::encode(result)
 }
 
-fn build_beckn_structure(profile_id: &str, metadata: &Value) -> Value {
+pub fn build_beckn_structure(profile_id: &str, metadata: &Value) -> Value {
     let name = metadata
         .get("name")
         .and_then(|v| v.as_str())
