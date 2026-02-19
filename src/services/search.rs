@@ -170,12 +170,12 @@ pub async fn handle_search(
 }
 
 pub async fn handle_on_search(
-    app_state: &AppState,
+    app_state: &Arc<AppState>,
     payload: &WebhookPayload,
     txn_id: &str,
 ) -> Json<AckResponse> {
     if txn_id.starts_with("cron-") {
-        return handle_cron_on_search(app_state, payload, txn_id).await;
+        return handle_cron_on_search_v2(app_state, payload, txn_id).await;
     }
 
     // --- Get a Redis connection from the pool ---
