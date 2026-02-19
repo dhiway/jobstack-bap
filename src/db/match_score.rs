@@ -494,15 +494,17 @@ pub async fn fetch_jobs_with_matches(
 pub async fn fetch_missing_matches(db_pool: &PgPool) -> Result<Vec<MissingMatchRow>, sqlx::Error> {
     query_as::<_, MissingMatchRow>(
         r#"
-        SELECT
-            j.id AS job_id,
-            p.id AS profile_id
+        SELECT j.id AS job_id,
+               p.id AS profile_id
         FROM jobs j
-        CROSS JOIN profiles p
-        LEFT JOIN job_profile_matches m
-            ON m.job_id = j.id
-           AND m.profile_id = p.id
-        WHERE m.job_id IS NULL
+        JOIN profiles p ON TRUE
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM job_profile_matches m
+            WHERE m.job_id = j.id
+              AND m.profile_id = p.id
+        )
+        LIMIT 5000
         "#,
     )
     .fetch_all(db_pool)
