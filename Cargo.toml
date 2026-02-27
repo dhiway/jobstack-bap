@@ -16,7 +16,7 @@ tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt","json","time"] }
 serde_json = "1.0.140"
 reqwest = { version = "0.12", features = ["json"] }
-uuid = { version = "1.17.0", features = ["v4"] }
+uuid = { version = "1.17.0", features = ["v4", "serde"] }
 anyhow = "1.0.98"
 redis = { version = "0.32.2", features = ["tokio-comp"] }
 sha2 = "0.10.9"
@@ -31,3 +31,5 @@ hex = "0.4.3"
 futures = "0.3.31"
 deadpool-redis = "0.22.0"
 strsim = "0.11.1"
+hmac = "0.12.1"
+rand = "0.10.0"

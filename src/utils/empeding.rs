@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use strsim::jaro_winkler;
-use tracing::info;
+use tracing::{info, warn};
 
 pub fn cached_jaro(
     profile_str: &str,
@@ -100,7 +100,7 @@ pub fn cosine_similarity_with_norm(vec_a: &[f32], vec_b: &[f32], norm_a: f32, no
 }
 
 /// Compute final match score combining embedding cosine and manual numeric fields
-pub fn compute_match_score(
+pub fn compute_empeding_match_score(
     profile_emb: &[f32],
     profile_norm: f32,
     job_emb: &[f32],
@@ -116,7 +116,7 @@ pub fn compute_match_score(
     // Base cosine similarity using precomputed norms
     let mut score = cosine_similarity_with_norm(profile_emb, job_emb, profile_norm, job_norm);
     let base_score = score;
-    info!("🧮 Base cosine similarity score: {:.4}", base_score);
+    warn!("🧮 Base cosine similarity score: {:.4}", base_score);
 
     let mut mismatches = 0;
 
@@ -127,7 +127,7 @@ pub fn compute_match_score(
         if job_val.is_some() && (profile_val.is_none() || profile_val == Some(&Value::Null)) {
             score *= field.penalty;
             mismatches += 1;
-            info!(
+            warn!(
                 "⚠️ {} present in job but missing in profile → applied penalty {:.2}, score now {:.4}",
                 field.name, field.penalty, score
             );
@@ -144,12 +144,12 @@ pub fn compute_match_score(
                         if sim < 0.8 {
                             score *= field.penalty;
                             mismatches += 1;
-                            info!(
+                            warn!(
                                 "⚠️ {} similarity low ({:.2}) → applied penalty {:.2}, score now {:.4}",
                                 field.name, sim, field.penalty, score
                             );
                         } else {
-                            info!(
+                            warn!(
                                 "✅ {} similarity good ({:.2}) → no penalty applied",
                                 field.name, sim
                             );
@@ -176,13 +176,13 @@ pub fn compute_match_score(
                         if p < min || p > max {
                             score *= field.penalty;
                             mismatches += 1;
-                            info!(
+                            warn!(
                                 "⚠️ {} out of range ({} not in [{}, {}]) → applied penalty {:.2}, score now {:.4}",
                                 field.name, p, min, max, field.penalty, score
                             );
                         } else if let Some(bonus) = field.bonus {
                             score *= bonus;
-                            info!(
+                            warn!(
                                 "✅ {} in range ({} in [{}, {}]) → applied bonus {:.2}, score now {:.4}",
                                 field.name, p, min, max, bonus, score
                             );
@@ -201,7 +201,7 @@ pub fn compute_match_score(
 
     if score.is_nan() {
         score = 0.0;
-        info!("🚫 NaN detected — setting score to 0.0");
+        warn!("🚫 NaN detected — setting score to 0.0");
     }
 
     score.clamp(0.0, 1.0)

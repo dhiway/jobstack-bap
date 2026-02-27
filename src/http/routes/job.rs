@@ -8,8 +8,8 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-
-pub fn routes(app_state: AppState) -> Router {
+use std::sync::Arc;
+pub fn routes(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/v1/apply", post(handle_job_apply))
         .route("/v1/job-applications", get(handle_job_applications))

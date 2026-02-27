@@ -21,13 +21,14 @@ use tokio::time::{timeout, Duration};
 use tracing::info;
 use uuid::Uuid;
 
+use std::sync::Arc;
 #[derive(Serialize)]
 struct ErrorResponse {
     error: String,
 }
 
 pub async fn handle_job_apply(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<JobApplyRequest>,
 ) -> Result<impl IntoResponse, Response> {
     let user_id = req
@@ -164,7 +165,7 @@ async fn call_and_wait_for_action(
         Some(&req.context.bpp_uri),
     );
 
-    if let Err(e) = post_json(&adapter_url, payload).await {
+    if let Err(e) = post_json(&adapter_url, payload, None).await {
         app_state.shared_state.pending_searches.remove(&unique_key);
         return Err((
             StatusCode::BAD_GATEWAY,
@@ -266,7 +267,7 @@ pub async fn handle_on_confirm(
 }
 
 pub async fn handle_job_applications(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<JobApplicationsQuery>,
 ) -> impl IntoResponse {
     let user_id = &params.user_id;

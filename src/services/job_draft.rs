@@ -13,9 +13,9 @@ use axum::{
     Json,
 };
 use serde_json::json;
-
+use std::sync::Arc;
 pub async fn create_user_draft_application(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<DraftRequest>,
 ) -> Result<impl IntoResponse, Response> {
     let user_id = req
@@ -99,7 +99,7 @@ pub async fn create_user_draft_application(
 }
 
 pub async fn get_user_draft_applications(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<DraftApplicationsQuery>,
 ) -> impl IntoResponse {
     let user_id = &params.user_id;
@@ -146,7 +146,7 @@ pub async fn get_user_draft_applications(
 
 pub async fn update_user_draft_application(
     Path(draft_id): Path<i32>,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<DraftRequest>,
 ) -> Result<impl IntoResponse, Response> {
     let user_id = req
@@ -210,7 +210,7 @@ pub async fn update_user_draft_application(
 
 pub async fn delete_user_draft_application(
     Path(draft_id): Path<i32>,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, Response> {
     match delete_draft_application(&app_state.db_pool, draft_id).await {
         Ok(_) => Ok(StatusCode::NO_CONTENT),

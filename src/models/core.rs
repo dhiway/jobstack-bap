@@ -151,3 +151,8 @@ pub struct Contact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<String>,
 }
+
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
