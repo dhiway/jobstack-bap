@@ -30,9 +30,10 @@ pub async fn start_cron_jobs(state: Arc<AppState>) -> JobScheduler {
         let state = state.clone();
         tokio::spawn(async move {
             tracing::info!(
-                "🚀 Server restarted, waiting 15 seconds before first fetch_profiles..."
+                "🚀 Server restarted, waiting 10 minutes before first fetch_profiles..."
             );
-            sleep(Duration::from_secs(15)).await;
+
+            sleep(Duration::from_secs(60 * 10)).await;
 
             tracing::info!("👤 Running initial fetch_profiles...");
             fetch_profiles::run(state).await;

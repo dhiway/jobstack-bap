@@ -238,7 +238,8 @@ pub async fn fetch_jobs_with_matches(
                 JOIN jobs j ON j.id = jpm.job_id
                 JOIN profiles p ON p.id = jpm.profile_id
                 WHERE p.profile_id = $1
-
+                AND j.is_active = true
+                 
                 -- 🔍 fuzzy query
                 AND (
                   $2::text IS NULL
@@ -291,10 +292,10 @@ pub async fn fetch_jobs_with_matches(
                         '[,/|]'
                       ) r(role)
                       WHERE trim(r.role) <> ''
-                        AND trim(r.role) NOT ILIKE ALL (
-                          SELECT '%' || trim(pf2.raw_pf) || '%'
-                          FROM unnest(string_to_array($3, ',')) pf2(raw_pf)
-                        )
+                      AND trim(r.role) NOT ILIKE ALL (
+                        SELECT '%' || trim(pf2.raw_pf) || '%'
+                        FROM unnest(string_to_array($3, ',')) pf2(raw_pf)
+                      )
                     )
                   )
                 )
@@ -318,6 +319,7 @@ pub async fn fetch_jobs_with_matches(
                 JOIN jobs j ON j.id = jpm.job_id
                 JOIN profiles p ON p.id = jpm.profile_id
                 WHERE p.profile_id = $1
+                AND j.is_active = true
 
                 AND (
                   $2::text IS NULL
@@ -328,6 +330,10 @@ pub async fn fetch_jobs_with_matches(
                       COALESCE(j.beckn_structure #>> '{descriptor,name}', '') % trim(q.raw_q)
                       OR COALESCE(j.beckn_structure #>> '{tags,industry}', '') % trim(q.raw_q)
                       OR COALESCE(j.beckn_structure #>> '{tags,role}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{tags,jobDetails,title}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{locations,city}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{locations,state}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{tags,basicInfo,jobProviderName}', '') % trim(q.raw_q)
                     )
                   )
                 )
@@ -345,7 +351,7 @@ pub async fn fetch_jobs_with_matches(
                   )
                 )
 
-                AND (
+               AND (
                   $3::text IS NULL
                   OR (
                     EXISTS (
@@ -355,6 +361,18 @@ pub async fn fetch_jobs_with_matches(
                         COALESCE(j.beckn_structure #>> '{tags,role}', '') ILIKE '%' || trim(pf.raw_pf) || '%'
                         OR COALESCE(j.beckn_structure #>> '{tags,industry}', '') ILIKE '%' || trim(pf.raw_pf) || '%'
                         OR COALESCE(j.beckn_structure #>> '{descriptor,name}', '') ILIKE '%' || trim(pf.raw_pf) || '%'
+                      )
+                    )
+                    AND NOT EXISTS (
+                      SELECT 1
+                      FROM regexp_split_to_table(
+                        COALESCE(j.beckn_structure #>> '{tags,role}', ''),
+                        '[,/|]'
+                      ) r(role)
+                      WHERE trim(r.role) <> ''
+                      AND trim(r.role) NOT ILIKE ALL (
+                        SELECT '%' || trim(pf2.raw_pf) || '%'
+                        FROM unnest(string_to_array($3, ',')) pf2(raw_pf)
                       )
                     )
                   )
@@ -384,19 +402,19 @@ pub async fn fetch_jobs_with_matches(
                 r#"
                 SELECT COUNT(*)
                 FROM jobs j
-                WHERE
-                  (
-                    $1::text IS NULL
-                    OR EXISTS (
-                      SELECT 1
-                      FROM unnest(string_to_array($1, ',')) q(raw_q)
-                      WHERE (
-                        COALESCE(j.beckn_structure #>> '{descriptor,name}', '') % trim(q.raw_q)
-                        OR COALESCE(j.beckn_structure #>> '{tags,industry}', '') % trim(q.raw_q)
-                        OR COALESCE(j.beckn_structure #>> '{tags,role}', '') % trim(q.raw_q)
-                      )
+                WHERE j.is_active = true
+                AND (
+                  $1::text IS NULL
+                  OR EXISTS (
+                    SELECT 1
+                    FROM unnest(string_to_array($1, ',')) q(raw_q)
+                    WHERE (
+                      COALESCE(j.beckn_structure #>> '{descriptor,name}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{tags,industry}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{tags,role}', '') % trim(q.raw_q)
                     )
                   )
+                )
                 AND (
                   $3::text IS NULL
                   OR NOT EXISTS (
@@ -437,19 +455,19 @@ pub async fn fetch_jobs_with_matches(
                     'match_score', NULL
                 )
                 FROM jobs j
-                WHERE
-                  (
-                    $1::text IS NULL
-                    OR EXISTS (
-                      SELECT 1
-                      FROM unnest(string_to_array($1, ',')) q(raw_q)
-                      WHERE (
-                        COALESCE(j.beckn_structure #>> '{descriptor,name}', '') % trim(q.raw_q)
-                        OR COALESCE(j.beckn_structure #>> '{tags,industry}', '') % trim(q.raw_q)
-                        OR COALESCE(j.beckn_structure #>> '{tags,role}', '') % trim(q.raw_q)
-                      )
+                WHERE j.is_active = true
+                AND (
+                  $1::text IS NULL
+                  OR EXISTS (
+                    SELECT 1
+                    FROM unnest(string_to_array($1, ',')) q(raw_q)
+                    WHERE (
+                      COALESCE(j.beckn_structure #>> '{descriptor,name}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{tags,industry}', '') % trim(q.raw_q)
+                      OR COALESCE(j.beckn_structure #>> '{tags,role}', '') % trim(q.raw_q)
                     )
                   )
+                )
                 AND (
                   $3::text IS NULL
                   OR NOT EXISTS (

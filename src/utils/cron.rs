@@ -1,21 +1,26 @@
 use crate::config::NotificationSchedule;
 use crate::utils::notification::{build_notification_cron_type, NotificationCronType};
 pub fn build_cron_expr(seconds: u64) -> (String, String) {
-    let desc = if seconds < 60 {
-        format!("every {} seconds", seconds)
-    } else if seconds % 60 == 0 {
-        format!("every {} minutes", seconds / 60)
+    if seconds < 60 {
+        (
+            format!("every {} seconds", seconds),
+            format!("*/{} * * * * *", seconds),
+        )
+    } else if seconds < 3600 {
+        let minutes = seconds / 60;
+        (
+            format!("every {} minutes", minutes),
+            format!("0 */{} * * * *", minutes),
+        )
+    } else if seconds < 86400 {
+        let hours = seconds / 3600;
+        (
+            format!("every {} hours", hours),
+            format!("0 0 */{} * * *", hours),
+        )
     } else {
-        format!("every {} minutes {} seconds", seconds / 60, seconds % 60)
-    };
-
-    let expr = if seconds < 60 {
-        format!("*/{} * * * * *", seconds)
-    } else {
-        format!("0 */{} * * * *", seconds / 60)
-    };
-
-    (desc, expr)
+        ("once per day".to_string(), "0 0 0 * * *".to_string())
+    }
 }
 
 pub fn build_notification_cron_expr(schedule: &NotificationSchedule) -> (String, String) {
