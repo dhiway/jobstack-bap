@@ -1,6 +1,6 @@
 use crate::cron::job_profile_match;
 use crate::db::{
-    job::{delete_stale_jobs, store_jobs},
+    job::{deactivate_stale_jobs, store_jobs},
     match_score::fetch_jobs_with_matches,
 };
 use crate::models::search::SearchRequestV2;
@@ -909,7 +909,7 @@ pub async fn handle_cron_on_search_v2(
     }
 
     if received_pages.len() as u64 == total_pages {
-        match delete_stale_jobs(&app_state.db_pool, &bpp_id, txn_id).await {
+        match deactivate_stale_jobs(&app_state.db_pool, &bpp_id, txn_id).await {
             Ok(count) => info!(
                 "🧹 Stale jobes cleaned up: {} rows deleted (bpp_id={}, txn_id={})",
                 count, bpp_id, txn_id
