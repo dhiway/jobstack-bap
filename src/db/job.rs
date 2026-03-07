@@ -103,6 +103,7 @@ pub async fn store_jobs(db_pool: &PgPool, jobs: &[NewJob]) -> Result<(), Error> 
             bpp_id = EXCLUDED.bpp_id,
             bpp_uri = EXCLUDED.bpp_uri,
             last_synced_at = EXCLUDED.last_synced_at,
+            is_active = true,
             updated_at = now()
         "#,
     )
@@ -121,16 +122,19 @@ pub async fn store_jobs(db_pool: &PgPool, jobs: &[NewJob]) -> Result<(), Error> 
     Ok(())
 }
 
-pub async fn delete_stale_jobs(
+pub async fn deactivate_stale_jobs(
     db_pool: &PgPool,
     bpp_id: &str,
     txn_id: &str,
 ) -> Result<u64, sqlx::Error> {
     let result = query(
         r#"
-        DELETE FROM jobs
+        UPDATE jobs
+        SET is_active = false,
+            updated_at = now()
         WHERE bpp_id = $1
           AND transaction_id <> $2
+          AND is_active = true
         "#,
     )
     .bind(bpp_id)

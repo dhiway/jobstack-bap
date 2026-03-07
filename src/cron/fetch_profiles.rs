@@ -7,7 +7,9 @@ use reqwest::header;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 use tracing::{error, info};
+
 #[derive(Debug, Deserialize)]
 pub struct ProfilesApiResponse {
     pub data: Vec<ApiProfile>,
@@ -87,19 +89,41 @@ pub async fn run(app_state: Arc<AppState>) {
         let mut headers = header::HeaderMap::new();
         headers.insert("x-api-key", header::HeaderValue::from_str(api_key).unwrap());
 
-        let response: ProfilesApiResponse = match get_json(&url, headers).await {
-            Ok(v) => match serde_json::from_value(v) {
-                Ok(parsed) => parsed,
+        let response: ProfilesApiResponse = loop {
+            match get_json(&url, headers.clone()).await {
+                Ok(v) => match serde_json::from_value(v) {
+                    Ok(parsed) => break parsed,
+                    Err(e) => {
+                        error!("❌ Failed to parse profiles response: {:?}", e);
+                        return;
+                    }
+                },
                 Err(e) => {
-                    error!("❌ Failed to parse profiles response: {:?}", e);
-                    sync_completed = false;
-                    break;
+                    let error_string = e.to_string();
+                    if error_string.contains("429") {
+                        let mut retry_seconds = 20;
+
+                        if let Some(pos) = error_string.find("retry in ") {
+                            let slice = &error_string[pos + 9..];
+                            if let Some(end) = slice.find(" ") {
+                                if let Ok(sec) = slice[..end].parse::<u64>() {
+                                    retry_seconds = sec;
+                                }
+                            }
+                        }
+
+                        error!(
+                            "⚠️ Rate limited. Waiting {} seconds before retrying page {}...",
+                            retry_seconds, page
+                        );
+
+                        sleep(Duration::from_secs(retry_seconds)).await;
+                        continue;
+                    }
+
+                    error!("❌ Failed to fetch profiles: {:?}", e);
+                    return;
                 }
-            },
-            Err(e) => {
-                error!("❌ Failed to fetch profiles: {:?}", e);
-                sync_completed = false;
-                break;
             }
         };
 
@@ -137,6 +161,7 @@ pub async fn run(app_state: Arc<AppState>) {
         }
 
         page += 1;
+        sleep(Duration::from_millis(300)).await;
     }
 
     if sync_completed {
@@ -148,7 +173,9 @@ pub async fn run(app_state: Arc<AppState>) {
                 error!("❌ Failed to delete stale profiles: {:?}", e);
             }
         }
+
         info!(target: "cron", "🔗 Triggering job-profile match scoring...");
+
         tokio::spawn({
             let state = app_state.clone();
             async move {
