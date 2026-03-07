@@ -30,7 +30,7 @@ impl EmbeddingService for GcpEmbeddingService {
         app_state: &AppState,
     ) -> Result<Vec<f32>> {
         if text.trim().is_empty() {
-            info!("⚠️ Skipping embedding generation: input text is empty");
+            // info!("⚠️ Skipping embedding generation: input text is empty");
             return Ok(vec![]);
         }
         let mut hasher = Sha256::new();
@@ -39,19 +39,19 @@ impl EmbeddingService for GcpEmbeddingService {
 
         let cache_key = format!("embedding:{}:{}", app_state.config.gcp.model, hash);
 
-        info!(
-            "🔑 Embedding request | chars={} | cache_key={}",
-            text.len(),
-            cache_key
-        );
+        // info!(
+        //     "🔑 Embedding request | chars={} | cache_key={}",
+        //     text.len(),
+        //     cache_key
+        // );
 
         match conn.get::<_, Option<String>>(&cache_key).await {
             Ok(Some(cached)) => {
                 if let Ok(vec) = serde_json::from_str::<Vec<f32>>(&cached) {
-                    info!("✅ Embedding cache hit");
+                    // info!("✅ Embedding cache hit");
                     return Ok(vec);
                 } else {
-                    info!("⚠️ Failed to deserialize cached embedding, refetching");
+                    // info!("⚠️ Failed to deserialize cached embedding, refetching");
                 }
             }
             Ok(None) => info!("❌ Embedding cache miss"),
@@ -72,7 +72,7 @@ impl EmbeddingService for GcpEmbeddingService {
             }
         });
 
-        info!("🚀 Fetching embedding from GCP");
+        // info!("🚀 Fetching embedding from GCP");
 
         let client = reqwest::Client::new();
         let resp = client
@@ -83,7 +83,7 @@ impl EmbeddingService for GcpEmbeddingService {
             .await?;
 
         let status = resp.status();
-        info!("📡 GCP embedding response status: {}", status);
+        // info!("📡 GCP embedding response status: {}", status);
 
         let json_resp: Value = resp.json().await?;
 
@@ -112,7 +112,7 @@ impl EmbeddingService for GcpEmbeddingService {
         {
             error!("❌ Failed to cache embedding in Redis: {:?}", e);
         } else {
-            info!("💾 Cached embedding | dims={}", embedding.len());
+            // info!("💾 Cached embedding | dims={}", embedding.len());
         }
 
         Ok(embedding)

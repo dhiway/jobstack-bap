@@ -16,23 +16,23 @@ pub async fn start_cron_jobs(state: Arc<AppState>) -> JobScheduler {
      * Initial delayed run after server restart
      * ------------------------------------------------------------
      */
-    {
-        let state = state.clone();
-        tokio::spawn(async move {
-            tracing::info!("🚀 Server restarted, waiting 5 seconds before first fetch_jobs...");
-            sleep(Duration::from_secs(5)).await;
+    // {
+    //     let state = state.clone();
+    //     tokio::spawn(async move {
+    //         tracing::info!("🚀 Server restarted, waiting 5 seconds before first fetch_jobs...");
+    //         sleep(Duration::from_secs(5)).await;
 
-            tracing::info!("📦 Running initial fetch_jobs...");
-            fetch_jobs::run(state).await;
-        });
-    }
+    //         tracing::info!("📦 Running initial fetch_jobs...");
+    //         fetch_jobs::run(state).await;
+    //     });
+    // }
     {
         let state = state.clone();
         tokio::spawn(async move {
             tracing::info!(
                 "🚀 Server restarted, waiting 15 seconds before first fetch_profiles..."
             );
-            sleep(Duration::from_secs(15)).await;
+            sleep(Duration::from_secs(5)).await;
 
             tracing::info!("👤 Running initial fetch_profiles...");
             fetch_profiles::run(state).await;
