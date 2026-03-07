@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use strsim::jaro_winkler;
-use tracing::{info, warn};
+use tracing::info;
 
 pub fn cached_jaro(
     profile_str: &str,
@@ -115,7 +115,7 @@ pub fn compute_empeding_match_score(
 
     // Base cosine similarity using precomputed norms
     let mut score = cosine_similarity_with_norm(profile_emb, job_emb, profile_norm, job_norm);
-    let base_score = score;
+    // let base_score = score;
     // warn!("🧮 Base cosine similarity score: {:.4}", base_score);
 
     let mut mismatches = 0;

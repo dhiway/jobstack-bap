@@ -95,7 +95,6 @@ pub async fn run(app_state: Arc<AppState>) {
                     Ok(parsed) => break parsed,
                     Err(e) => {
                         error!("❌ Failed to parse profiles response: {:?}", e);
-                        sync_completed = false;
                         return;
                     }
                 },
@@ -123,7 +122,6 @@ pub async fn run(app_state: Arc<AppState>) {
                     }
 
                     error!("❌ Failed to fetch profiles: {:?}", e);
-                    sync_completed = false;
                     return;
                 }
             }
