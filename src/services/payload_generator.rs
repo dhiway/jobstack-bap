@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::models::core::Context;
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -21,7 +22,7 @@ fn generate_context(
         "message_id": message_id,
         "transaction_id": txn_id,
         "timestamp": now,
-        "ttl": "PT30S",
+        "ttl": config.bap.ttl,
         "version": config.bap.version
     });
 
@@ -49,5 +50,36 @@ pub fn build_beckn_payload(
     json!({
         "context": context,
         "message": message,
+    })
+}
+
+fn build_profile_beckn_response_context(config: &AppConfig, context: Context) -> Value {
+    let now = Utc::now().to_rfc3339();
+    let action = format!("on_{}", context.action);
+    json!({
+        "action": action,
+       "bap_id": context.bap_id,
+        "bap_uri": context.bap_uri,
+        "bpp_id": config.bpp.id,
+        "bpp_uri": config.bpp.caller_uri,
+        "domain": config.bpp.domain,
+        "message_id": context.message_id,
+        "transaction_id": context.transaction_id,
+        "timestamp": now,
+        "ttl": config.bpp.ttl,
+        "version": config.bpp.version
+    })
+}
+
+pub fn build_profile_beckn_response(
+    config: &AppConfig,
+    context: Context,
+    message: &Value,
+) -> Value {
+    let context = build_profile_beckn_response_context(config, context);
+
+    json!({
+        "context": context,
+        "message": message
     })
 }

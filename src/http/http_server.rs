@@ -1,4 +1,5 @@
 use crate::cron::start_cron_jobs;
+use crate::workers::redis_event_worker::start as start_redis_worker;
 use crate::{
     config::AppConfig,
     http::routes::create_routes,
@@ -38,16 +39,22 @@ pub async fn start_http_server(
     let db_pool = PgPool::connect(&config.db.url).await?;
     info!("✅ connected to db at {}", &config.db.url);
 
-    let app_state = AppState {
+    let app_state = Arc::new(AppState {
         config: Arc::new(config.clone()),
         shared_state,
         redis_pool,
         db_pool,
-    };
+    });
 
     let _scheduler = start_cron_jobs(app_state.clone()).await;
 
-    let http_server = tokio::spawn(run_http_server(listener, shutdown_rx, app_state));
+    let http_server = tokio::spawn(run_http_server(listener, shutdown_rx, app_state.clone()));
+
+    {
+        tokio::spawn(async move {
+            start_redis_worker(app_state.clone()).await;
+        });
+    }
 
     Ok(http_server)
 }
@@ -55,9 +62,9 @@ pub async fn start_http_server(
 pub async fn run_http_server(
     listener: TcpListener,
     mut shutdown_rx: watch::Receiver<()>,
-    app_state: AppState,
+    app_state: Arc<AppState>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let app = create_routes(app_state.clone());
+    let app = create_routes(app_state);
 
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(async move {

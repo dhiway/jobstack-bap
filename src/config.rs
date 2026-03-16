@@ -18,6 +18,15 @@ pub struct Bap {
     pub version: String,
     pub ttl: String,
 }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Bpp {
+    pub id: String,
+    pub caller_uri: String,
+    pub domain: String,
+    pub version: String,
+    pub ttl: String,
+    pub catalog_name: String,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RedisConfig {
@@ -39,6 +48,34 @@ pub struct CacheConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobSchedule {
     pub seconds: u64,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProfileSchedule {
+    pub seconds: u64,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MatchScoreSchedule {
+    pub seconds: u64,
+    pub batch: usize,
+    pub source: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum ScheduleType {
+    Weekly,
+    Monthly,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NotificationSchedule {
+    pub schedule_type: ScheduleType,
+    pub weekday: Option<u8>, // 0-6 (for weekly)
+    pub day: Option<u8>,     // 1-31 (for monthly)
+    pub hour: u8,            // 0-23
+    pub minute: u8,          // 0-59
+    pub seconds: u8,         // 0-59
+    pub min_score: i16,
+    pub batch: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -93,8 +130,32 @@ pub enum MatchMode {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CronConfig {
     pub fetch_jobs: JobSchedule,
+    pub fetch_profiles: ProfileSchedule,
+    pub compute_match_scores: MatchScoreSchedule,
+    pub notification: NotificationSchedule,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BackendServiceConfig {
+    pub base_url: String,
+    pub api_key: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NotificationServiceConfig {
+    pub base_url: String,
+    pub ns_secret: String,
+    pub ns_key_id: String,
+    pub content_sid: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ServicesConfig {
+    pub seeker: BackendServiceConfig,
+    pub notification: NotificationServiceConfig,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AuthConfig {
+    pub x_api_key: String,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     pub debug: bool,
@@ -106,6 +167,9 @@ pub struct AppConfig {
     pub cron: CronConfig,
     pub gcp: GcpConfig,
     pub match_score_path: String,
+    pub services: ServicesConfig,
+    pub bpp: Bpp,
+    pub auth: AuthConfig,
 }
 
 impl AppConfig {

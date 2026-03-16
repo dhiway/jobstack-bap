@@ -1,6 +1,7 @@
 use chrono::Utc;
 use chrono_tz::Asia::Kolkata;
 use std::fs;
+use std::time::Duration;
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
 use tracing_subscriber::{
     fmt as tracing_fmt,
@@ -8,7 +9,6 @@ use tracing_subscriber::{
     prelude::*,
     EnvFilter,
 };
-
 // -----------------------
 // Custom India Time
 // -----------------------
@@ -101,4 +101,23 @@ pub fn setup_logging(log_dir: &str, svc: &str) -> (WorkerGuard, WorkerGuard, Wor
     .expect("Failed to set global subscriber");
 
     (normal_guard, perf_guard, cron_guard)
+}
+
+pub fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let millis = duration.subsec_millis();
+
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+
+    if hours > 0 {
+        format!("{hours}h {minutes}m {seconds}s")
+    } else if minutes > 0 {
+        format!("{minutes}m {seconds}s")
+    } else if seconds > 0 {
+        format!("{seconds}s {millis}ms")
+    } else {
+        format!("{millis}ms")
+    }
 }

@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::Serialize;
+use std::sync::Arc;
 use tokio::sync::oneshot::channel;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
@@ -18,7 +19,7 @@ use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use tracing::info;
 
 pub async fn handle_status(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(req): Json<StatusRequest>,
 ) -> Result<impl IntoResponse, Response> {
     let ctx = &req.context;
@@ -45,7 +46,7 @@ pub async fn handle_status(
         Some(&req.context.bpp_uri),
     );
 
-    if let Err(e) = post_json(&adapter_url, payload).await {
+    if let Err(e) = post_json(&adapter_url, payload, None).await {
         app_state
             .shared_state
             .pending_searches

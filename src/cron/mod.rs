@@ -1,67 +1,62 @@
 use crate::state::AppState;
+use crate::utils::cron::{build_cron_expr, build_notification_cron_expr};
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tokio_cron_scheduler::{Job, JobScheduler};
-
 mod fetch_jobs;
+pub mod fetch_profiles;
 
-pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
+pub mod job_profile_match;
+mod notification;
+pub async fn start_cron_jobs(state: Arc<AppState>) -> JobScheduler {
     let scheduler = JobScheduler::new().await.unwrap();
 
-    // 👉 Wait 5 seconds and run first fetch after server start
+    /*
+     * ------------------------------------------------------------
+     * Initial delayed run after server restart
+     * ------------------------------------------------------------
+     */
     {
         let state = state.clone();
         tokio::spawn(async move {
-            tracing::info!("🚀 Server restarted, waiting 10 seconds before first fetch...");
+            tracing::info!("🚀 Server restarted, waiting 5 seconds before first fetch_jobs...");
             sleep(Duration::from_secs(5)).await;
 
-            tracing::info!("📦 Running initial fetch_jobs cron...");
+            tracing::info!("📦 Running initial fetch_jobs...");
             fetch_jobs::run(state).await;
         });
     }
+    {
+        let state = state.clone();
+        tokio::spawn(async move {
+            tracing::info!(
+                "🚀 Server restarted, waiting 10 minutes before first fetch_profiles..."
+            );
 
-    let fetch_jobs_seconds = state.config.cron.fetch_jobs.seconds;
+            sleep(Duration::from_secs(60 * 10)).await;
 
-    let schedule_desc = if fetch_jobs_seconds < 60 {
-        format!(
-            "every {} second{}",
-            fetch_jobs_seconds,
-            if fetch_jobs_seconds > 1 { "s" } else { "" }
-        )
-    } else if fetch_jobs_seconds % 60 == 0 {
-        let minutes = fetch_jobs_seconds / 60;
-        format!(
-            "every {} minute{}",
-            minutes,
-            if minutes > 1 { "s" } else { "" }
-        )
-    } else {
-        let minutes = fetch_jobs_seconds / 60;
-        let seconds = fetch_jobs_seconds % 60;
-        format!(
-            "every {} minute{} {} second{}",
-            minutes,
-            if minutes > 1 { "s" } else { "" },
-            seconds,
-            if seconds > 1 { "s" } else { "" }
-        )
-    };
+            tracing::info!("👤 Running initial fetch_profiles...");
+            fetch_profiles::run(state).await;
+        });
+    }
 
-    let fetch_jobs_cron_expr = if fetch_jobs_seconds < 60 {
-        format!("*/{} * * * * *", fetch_jobs_seconds)
-    } else {
-        let minutes = fetch_jobs_seconds / 60;
-        format!("0 */{} * * * *", minutes)
-    };
+    /*
+     * ------------------------------------------------------------
+     * fetch_jobs cron
+     * ------------------------------------------------------------
+     */
+
+    let (jobs_desc, jobs_cron_expr) = build_cron_expr(state.config.cron.fetch_jobs.seconds);
 
     tracing::info!(
-        "📅 Scheduling fetch_jobs cron: {} → Cron expression: {}",
-        schedule_desc,
-        fetch_jobs_cron_expr
+        "📅 Scheduling fetch_jobs cron: {} → {}",
+        jobs_desc,
+        jobs_cron_expr
     );
 
     scheduler
         .add(
-            Job::new_async(&fetch_jobs_cron_expr, {
+            Job::new_async(&jobs_cron_expr, {
                 let state = state.clone();
                 move |_uuid, _l| {
                     let state = state.clone();
@@ -74,6 +69,74 @@ pub async fn start_cron_jobs(state: AppState) -> JobScheduler {
         )
         .await
         .unwrap();
+
+    /*
+     * ------------------------------------------------------------
+     * fetch_profiles cron
+     * ------------------------------------------------------------
+     */
+
+    let (profiles_desc, profiles_cron_expr) =
+        build_cron_expr(state.config.cron.fetch_profiles.seconds);
+
+    tracing::info!(
+        "📅 Scheduling fetch_profiles cron: {} → {}",
+        profiles_desc,
+        profiles_cron_expr
+    );
+
+    scheduler
+        .add(
+            Job::new_async(&profiles_cron_expr, {
+                let state = state.clone();
+                move |_uuid, _l| {
+                    let state = state.clone();
+                    Box::pin(async move {
+                        fetch_profiles::run(state).await;
+                    })
+                }
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    /*
+     * ------------------------------------------------------------
+     * send notification cron
+     * ------------------------------------------------------------
+     */
+
+    let (notification_desc, notification_cron_expr) =
+        build_notification_cron_expr(&state.config.cron.notification);
+
+    tracing::info!(
+        "📅 Scheduling notification cron: {} → {}",
+        notification_desc,
+        notification_cron_expr
+    );
+
+    scheduler
+        .add(
+            Job::new_async(&notification_cron_expr, {
+                let state = state.clone();
+                move |_uuid, _l| {
+                    let state = state.clone();
+                    Box::pin(async move {
+                        notification::run(state).await;
+                    })
+                }
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    /*
+     * ------------------------------------------------------------
+     * Start scheduler
+     * ------------------------------------------------------------
+     */
 
     scheduler.start().await.unwrap();
     scheduler
