@@ -1,6 +1,22 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{query, Error, PgPool};
+use sqlx::{query, query_as, Error, FromRow, PgPool};
+use uuid::Uuid;
+#[derive(Debug, FromRow)]
+pub struct JobRow {
+    pub id: Uuid,
+    pub hash: String,
+    pub metadata: Option<Value>,
+    pub beckn_structure: Option<Value>,
+}
+
+#[derive(sqlx::FromRow, Debug)]
+pub struct JobLookup {
+    pub job_id: String,
+    pub provider_id: Option<String>,
+    pub bpp_id: Option<String>,
+    pub bpp_uri: Option<String>,
+}
 
 pub struct NewJob {
     pub job_id: String,
@@ -143,4 +159,38 @@ pub async fn deactivate_stale_jobs(
     .await?;
 
     Ok(result.rows_affected())
+}
+pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx::Error> {
+    query_as::<_, JobRow>(
+        r#"
+        SELECT
+            id,
+            hash,
+            metadata,
+            beckn_structure
+        FROM jobs
+        WHERE id = $1
+        "#,
+    )
+    .bind(job_id)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn fetch_job_by_job_id(pool: &PgPool, job_id: &str) -> Result<JobLookup, sqlx::Error> {
+    query_as::<_, JobLookup>(
+        r#"
+        SELECT
+            job_id,
+            provider_id,
+            bpp_id,
+            bpp_uri
+        FROM jobs
+        WHERE job_id = $1
+          AND is_active = true
+        "#,
+    )
+    .bind(job_id)
+    .fetch_one(pool)
+    .await
 }

@@ -1,14 +1,31 @@
 use crate::models::search::Pagination;
+use crate::services::profiles::sync_profile_by_id;
+use crate::state::AppState;
+use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
-use serde_json::Value;
-use sqlx::{query, query_scalar, Error, PgPool, Row};
+use serde_json::{json, Value};
+use sqlx::{query, query_as, query_scalar, Error, FromRow, PgPool, Row};
+use std::sync::Arc;
 use tracing::info;
-
+use uuid::Uuid;
 pub struct PaginatedItems {
     pub items: Vec<Value>,
     pub total: i64,
 }
 
+#[derive(Debug, FromRow)]
+pub struct ProfileRow {
+    pub id: Uuid,
+    pub hash: String,
+    pub metadata: Option<Value>,
+    pub beckn_structure: Option<Value>,
+}
+
+#[derive(FromRow, Debug)]
+pub struct ProfileLookup {
+    pub profile_id: String,
+    pub metadata: serde_json::Value,
+}
 pub struct NewProfile {
     pub profile_id: String,
     pub user_id: String,
@@ -185,4 +202,80 @@ pub async fn fetch_beckn_profile_items(
         .collect::<Vec<_>>();
 
     Ok(PaginatedItems { items, total })
+}
+
+pub async fn fetch_profile_by_id(
+    pool: &PgPool,
+    profile_id: Uuid,
+) -> Result<ProfileRow, sqlx::Error> {
+    query_as::<_, ProfileRow>(
+        r#"
+        SELECT
+            id,
+            hash,
+            metadata,
+            beckn_structure
+        FROM profiles
+        WHERE id = $1
+        "#,
+    )
+    .bind(profile_id)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn get_or_sync_profile(
+    state: &Arc<AppState>,
+    profile_id: &str,
+) -> Result<ProfileLookup, (StatusCode, serde_json::Value)> {
+    let profile = query_as::<_, ProfileLookup>(
+        r#"
+        SELECT profile_id, metadata
+        FROM profiles
+        WHERE profile_id = $1
+        "#,
+    )
+    .bind(profile_id)
+    .fetch_optional(&state.db_pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"error": "Database error"}),
+        )
+    })?;
+
+    if let Some(p) = profile {
+        return Ok(p);
+    }
+
+    if let Err(e) = sync_profile_by_id(state, profile_id).await {
+        tracing::error!("❌ Sync failed for {}: {:?}", profile_id, e);
+    }
+    let profile = query_as::<_, ProfileLookup>(
+        r#"
+        SELECT profile_id, metadata
+        FROM profiles
+        WHERE profile_id = $1
+        "#,
+    )
+    .bind(profile_id)
+    .fetch_optional(&state.db_pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"error": "Database error"}),
+        )
+    })?;
+
+    if let Some(p) = profile {
+        return Ok(p);
+    }
+    Err((
+        StatusCode::NOT_FOUND,
+        json!({"error": "Invalid or missing profile_id"}),
+    ))
 }
