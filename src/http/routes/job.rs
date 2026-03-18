@@ -1,4 +1,4 @@
-use crate::services::job_apply::{handle_job_applications, handle_job_apply};
+use crate::services::job_apply::{handle_job_applications, handle_job_apply, handle_job_apply_v2};
 use crate::services::job_draft::{
     create_user_draft_application, delete_user_draft_application, get_user_draft_applications,
     update_user_draft_application,
@@ -29,5 +29,9 @@ pub fn routes(app_state: Arc<AppState>) -> Router {
             "/v1/job-applications/drafts/{id}",
             delete(delete_user_draft_application),
         )
+        // ====================
+        // V2 APIs
+        // ====================
+        .route("/v2/apply", post(handle_job_apply_v2))
         .with_state(app_state)
 }

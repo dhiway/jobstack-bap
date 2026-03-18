@@ -2,7 +2,7 @@ use crate::utils::empeding::{
     compute_empeding_match_score, job_text_for_embedding, profile_text_for_embedding,
 };
 use crate::{
-    db::match_score::{JobRow, ProfileRow},
+    db::{job::JobRow, profiles::ProfileRow},
     state::AppState,
 };
 use serde_json::Value;

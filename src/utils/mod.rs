@@ -1,6 +1,7 @@
 pub mod batching;
 pub mod cron;
 pub mod empeding;
+pub mod external_apis;
 pub mod hash;
 pub mod http_client;
 pub mod logging;

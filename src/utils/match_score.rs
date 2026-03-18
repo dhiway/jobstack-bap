@@ -1,7 +1,11 @@
-use crate::db::match_score::{
-    fetch_all_jobs, fetch_all_profiles, fetch_job_by_id, fetch_missing_matches, fetch_new_jobs,
-    fetch_new_profiles, fetch_profile_by_id, fetch_stale_matches, upsert_match_score, JobLiteRow,
-    JobRow, ProfileLiteRow, ProfileRow, StaleMatchRow,
+use crate::db::{
+    job::{fetch_job_by_id, JobRow},
+    match_score::{
+        fetch_all_jobs, fetch_all_profiles, fetch_missing_matches, fetch_new_jobs,
+        fetch_new_profiles, fetch_stale_matches, upsert_match_score, JobLiteRow, ProfileLiteRow,
+        StaleMatchRow,
+    },
+    profiles::{fetch_profile_by_id, ProfileRow},
 };
 use crate::services::match_score::compute_match_score;
 use crate::state::AppState;
