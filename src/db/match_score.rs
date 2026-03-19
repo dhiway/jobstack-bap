@@ -1,22 +1,7 @@
+use crate::db::{job::JobRow, profiles::ProfileRow};
 use serde_json::Value;
 use sqlx::{query, query_as, query_scalar, FromRow, PgPool};
 use uuid::Uuid;
-
-#[derive(Debug, FromRow)]
-pub struct JobRow {
-    pub id: Uuid,
-    pub hash: String,
-    pub metadata: Option<Value>,
-    pub beckn_structure: Option<Value>,
-}
-
-#[derive(Debug, FromRow)]
-pub struct ProfileRow {
-    pub id: Uuid,
-    pub hash: String,
-    pub metadata: Option<Value>,
-    pub beckn_structure: Option<Value>,
-}
 
 #[derive(Debug, FromRow, Clone)]
 pub struct JobLiteRow {
@@ -148,43 +133,6 @@ pub async fn upsert_match_score(
     .await?;
 
     Ok(())
-}
-
-pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx::Error> {
-    query_as::<_, JobRow>(
-        r#"
-        SELECT
-            id,
-            hash,
-            metadata,
-            beckn_structure
-        FROM jobs
-        WHERE id = $1
-        "#,
-    )
-    .bind(job_id)
-    .fetch_one(pool)
-    .await
-}
-
-pub async fn fetch_profile_by_id(
-    pool: &PgPool,
-    profile_id: Uuid,
-) -> Result<ProfileRow, sqlx::Error> {
-    query_as::<_, ProfileRow>(
-        r#"
-        SELECT
-            id,
-            hash,
-            metadata,
-            beckn_structure
-        FROM profiles
-        WHERE id = $1
-        "#,
-    )
-    .bind(profile_id)
-    .fetch_one(pool)
-    .await
 }
 
 pub async fn fetch_all_jobs(pool: &PgPool) -> Result<Vec<JobRow>, sqlx::Error> {
