@@ -6,6 +6,11 @@ pub struct JobRequest {
     pub context: MinimalContext,
     pub message: InitMessage,
 }
+#[derive(Debug, Deserialize, Serialize)]
+pub struct JobApplyV2Request {
+    pub job_id: String,
+    pub profile_id: String,
+}
 
 pub type DraftRequest = JobRequest;
 pub type JobApplyRequest = JobRequest;

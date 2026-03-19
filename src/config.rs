@@ -140,6 +140,11 @@ pub struct BackendServiceConfig {
     pub api_key: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GeoCodingConfig {
+    pub base_url: String,
+    pub api_key: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NotificationServiceConfig {
     pub base_url: String,
     pub ns_secret: String,
@@ -150,6 +155,7 @@ pub struct NotificationServiceConfig {
 pub struct ServicesConfig {
     pub seeker: BackendServiceConfig,
     pub notification: NotificationServiceConfig,
+    pub geo_coding: GeoCodingConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

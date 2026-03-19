@@ -1,11 +1,13 @@
-use crate::db::job_applications::{
-    get_job_applications, store_job_applications, NewJobApplication,
+use crate::db::{
+    job::{fetch_job_by_job_id, JobLookup},
+    job_applications::{get_job_applications, store_job_applications, NewJobApplication},
+    profiles::{get_or_sync_profile, ProfileLookup},
 };
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use crate::services::payload_generator::build_beckn_payload;
-use crate::utils::http_client::post_json;
+use crate::utils::{external_apis::call_google_geocode, http_client::post_json};
 use crate::{
-    models::job_apply::{JobApplicationsQuery, JobApplyRequest},
+    models::job_apply::{JobApplicationsQuery, JobApplyRequest, JobApplyV2Request},
     state::AppState,
 };
 use axum::{
@@ -15,7 +17,7 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use tokio::sync::oneshot::channel;
 use tokio::time::{timeout, Duration};
 use tracing::info;
@@ -31,6 +33,15 @@ pub async fn handle_job_apply(
     State(app_state): State<Arc<AppState>>,
     Json(req): Json<JobApplyRequest>,
 ) -> Result<impl IntoResponse, Response> {
+    match process_job_apply(&app_state, &req).await {
+        Ok(res) => Ok((StatusCode::OK, Json(res))),
+        Err((status, err)) => Err((status, Json(err)).into_response()),
+    }
+}
+pub async fn process_job_apply(
+    app_state: &Arc<AppState>,
+    req: &JobApplyRequest,
+) -> Result<serde_json::Value, (StatusCode, serde_json::Value)> {
     let user_id = req
         .message
         .order
@@ -56,40 +67,43 @@ pub async fn handle_job_apply(
                 tracing::error!("DB error: {:?}", e);
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "Database error"})),
-                )
-                    .into_response());
+                    json!({"error": "Database error"}),
+                ));
             }
         };
+
     if let Some(application) = existing.into_iter().next() {
-        let response_body = json!({
+        return Ok(json!({
             "message": "User has already applied for this job",
             "application": application
-        });
-        return Ok((StatusCode::OK, axum::Json(response_body)));
+        }));
     }
 
-    let _on_init = match call_and_wait_for_action(&app_state, &req, "init").await {
+    let _on_init = match call_and_wait_for_action(app_state, req, "init").await {
         Ok(data) => data,
-        Err((status, err)) => return Err((status, err).into_response()),
+        Err((status, err)) => return Err((status, json!(err.0))),
     };
-    let on_confirm = match call_and_wait_for_action(&app_state, &req, "confirm").await {
+
+    let on_confirm = match call_and_wait_for_action(app_state, req, "confirm").await {
         Ok(data) => data,
-        Err((status, err)) => return Err((status, err).into_response()),
+        Err((status, err)) => return Err((status, json!(err.0))),
     };
 
     let transaction_id = on_confirm["context"]["transaction_id"]
         .as_str()
         .unwrap_or_default()
         .to_string();
+
     let bpp_id = on_confirm["context"]["bpp_id"]
         .as_str()
         .unwrap_or_default()
         .to_string();
+
     let bpp_uri = on_confirm["context"]["bpp_uri"]
         .as_str()
         .unwrap_or_default()
         .to_string();
+
     let user_id = on_confirm["message"]["order"]["fulfillments"]
         .get(0)
         .and_then(|f| f["customer"]["person"]["id"].as_str())
@@ -123,17 +137,16 @@ pub async fn handle_job_apply(
         status: Some("APPLIED".to_string()),
         metadata: Some(on_confirm.clone()),
     };
-    //  Store in DB
+
     if let Err(e) = store_job_applications(&app_state.db_pool, new_application).await {
         tracing::error!("❌ Failed to store job application: {:?}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Failed to store job application"})),
-        )
-            .into_response());
+            json!({"error": "Failed to store job application"}),
+        ));
     }
 
-    Ok((StatusCode::OK, Json(on_confirm)))
+    Ok(on_confirm)
 }
 
 async fn call_and_wait_for_action(
@@ -307,4 +320,225 @@ pub async fn handle_job_applications(
                 .into_response()
         }
     }
+}
+
+pub async fn handle_job_apply_v2(
+    State(app_state): State<Arc<AppState>>,
+    Json(req): Json<JobApplyV2Request>,
+) -> Result<impl IntoResponse, Response> {
+    let profile = match get_or_sync_profile(&app_state, &req.profile_id).await {
+        Ok(p) => p,
+        Err((status, err)) => {
+            return Err((status, Json(err)).into_response());
+        }
+    };
+    let job = match fetch_job_by_job_id(&app_state.db_pool, &req.job_id).await {
+        Ok(j) => j,
+        Err(e) => {
+            tracing::error!("❌ Failed to fetch job: {:?}", e);
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": "Job not found"})),
+            )
+                .into_response());
+        }
+    };
+    let payload = build_job_apply_payload(&app_state, &job, &profile).await;
+
+    let job_apply_req: JobApplyRequest = match serde_json::from_value(payload) {
+        Ok(req) => req,
+        Err(e) => {
+            tracing::error!("❌ Failed to parse JobApplyRequest: {:?}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Invalid payload structure"})),
+            )
+                .into_response());
+        }
+    };
+
+    let result = match process_job_apply(&app_state, &job_apply_req).await {
+        Ok(res) => res,
+        Err((status, err)) => {
+            return Err((status, Json(err)).into_response());
+        }
+    };
+    Ok((StatusCode::OK, Json(result)))
+}
+
+pub async fn build_job_apply_payload(
+    app_state: &Arc<AppState>,
+    job: &JobLookup,
+    profile: &ProfileLookup,
+) -> Value {
+    let transaction_id = Uuid::new_v4().to_string();
+
+    let profile_id = &profile.profile_id;
+    let metadata = &profile.metadata;
+
+    let who_i_am = metadata.get("whoIAm");
+
+    let name = who_i_am
+        .and_then(|w| w.get("name"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let age = who_i_am
+        .and_then(|w| w.get("age"))
+        .and_then(|v| v.as_i64())
+        .map(|a| a.to_string())
+        .unwrap_or_default();
+
+    let gender = who_i_am
+        .and_then(|w| w.get("gender"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let phone = who_i_am
+        .and_then(|w| w.get("phone"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let address = who_i_am
+        .and_then(|w| w.get("location"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let geo_data = if !address.is_empty() {
+        match call_google_geocode(app_state, address).await {
+            Ok(data) => Some(data),
+            Err(e) => {
+                tracing::error!("❌ Geocode failed: {:?}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let geo_location = geo_data
+        .as_ref()
+        .and_then(|g| g.get("results"))
+        .and_then(|r| r.get(0))
+        .and_then(|r| r.get("geometry"))
+        .and_then(|g| g.get("location"));
+
+    let lat = geo_location
+        .and_then(|l| l.get("lat"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    let lng = geo_location
+        .and_then(|l| l.get("lng"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    let mut city_name = "";
+    let mut state_name = "";
+    let mut state_code = "";
+    let mut country_name = "";
+    let mut country_code = "";
+
+    if let Some(components) = geo_data
+        .as_ref()
+        .and_then(|g| g.get("results"))
+        .and_then(|r| r.get(0))
+        .and_then(|r| r.get("address_components"))
+        .and_then(|v| v.as_array())
+    {
+        for comp in components {
+            let types = comp.get("types").and_then(|t| t.as_array());
+
+            let long_name = comp.get("long_name").and_then(|v| v.as_str()).unwrap_or("");
+            let short_name = comp
+                .get("short_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if let Some(types) = types {
+                let has_type = |t: &str| types.iter().any(|x| x.as_str() == Some(t));
+
+                if city_name.is_empty()
+                    && (has_type("locality")
+                        || has_type("sublocality")
+                        || has_type("administrative_area_level_2"))
+                {
+                    city_name = long_name;
+                }
+                if state_name.is_empty() && has_type("administrative_area_level_1") {
+                    state_name = long_name;
+                    state_code = short_name;
+                }
+                if country_name.is_empty() && has_type("country") {
+                    country_name = long_name;
+                    country_code = short_name;
+                }
+            }
+        }
+    }
+
+    let formatted_address = geo_data
+        .as_ref()
+        .and_then(|g| g.get("results"))
+        .and_then(|r| r.get(0))
+        .and_then(|r| r.get("formatted_address"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    json!({
+        "context": {
+            "bpp_id": job.bpp_id.clone().unwrap_or_default(),
+            "bpp_uri": job.bpp_uri.clone().unwrap_or_default(),
+            "transaction_id": transaction_id
+        },
+        "message": {
+            "order": {
+                "provider": {
+                    "id": job.provider_id.clone().unwrap_or_default()
+                },
+                "items": [
+                    {
+                        "id": job.job_id,
+                        "fulfillment_ids": [profile_id]
+                    }
+                ],
+                "fulfillments": [
+                    {
+                        "id": profile_id,
+                        "customer": {
+                            "person": {
+                                "id": profile_id,
+                                "name": name,
+                                "age": age,
+                                "gender": gender,
+                                "metadata": metadata
+                            },
+                            "contact": {
+                                "phone": phone,
+                                "email": ""
+                            },
+                            "location": {
+                                "gps": {
+                                    "lat": lat,
+                                    "lng": lng
+                                },
+                                "address": formatted_address,
+                                "city": {
+                                    "name": city_name,
+                                    "code": ""
+                                },
+                                "state": {
+                                    "name": state_name,
+                                    "code": state_code
+                                },
+                                "country": {
+                                    "name": country_name,
+                                    "code": country_code
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    })
 }
