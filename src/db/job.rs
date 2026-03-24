@@ -8,6 +8,9 @@ pub struct JobRow {
     pub hash: String,
     pub metadata: Option<Value>,
     pub beckn_structure: Option<Value>,
+    pub embedding: Option<Vec<f32>>,
+    pub job_id: String,
+    pub bpp_id: String,
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -115,6 +118,11 @@ pub async fn store_jobs(db_pool: &PgPool, jobs: &[NewJob]) -> Result<(), Error> 
                 THEN EXCLUDED.hash
                 ELSE jobs.hash
             END,
+            embedding = CASE
+                WHEN jobs.hash IS DISTINCT FROM EXCLUDED.hash
+                THEN NULL
+                ELSE jobs.embedding
+            END,
             transaction_id = EXCLUDED.transaction_id,
             bpp_id = EXCLUDED.bpp_id,
             bpp_uri = EXCLUDED.bpp_uri,
@@ -167,7 +175,10 @@ pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx
             id,
             hash,
             metadata,
-            beckn_structure
+            beckn_structure,
+            job_id,
+            bpp_id,
+            embedding
         FROM jobs
         WHERE id = $1
         "#,
@@ -193,4 +204,42 @@ pub async fn fetch_job_by_job_id(pool: &PgPool, job_id: &str) -> Result<JobLooku
     .bind(job_id)
     .fetch_one(pool)
     .await
+}
+
+pub async fn fetch_jobs_pending_embedding(
+    db_pool: &PgPool,
+    bpp_id: &str,
+) -> Result<Vec<JobRow>, sqlx::Error> {
+    sqlx::query_as::<_, JobRow>(
+        r#"
+        SELECT *
+        FROM jobs
+        WHERE embedding IS NULL
+        AND bpp_id = $1
+        AND is_active = true
+        "#,
+    )
+    .bind(bpp_id)
+    .fetch_all(db_pool)
+    .await
+}
+pub async fn batch_update_job_embeddings(
+    db_pool: &PgPool,
+    updates: &[(uuid::Uuid, Vec<f32>)],
+) -> Result<(), sqlx::Error> {
+    for (id, embedding) in updates {
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET embedding = $1
+            WHERE id = $2
+            "#,
+        )
+        .bind(embedding)
+        .bind(id)
+        .execute(db_pool)
+        .await?;
+    }
+
+    Ok(())
 }

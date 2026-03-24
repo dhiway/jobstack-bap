@@ -4,6 +4,7 @@ pub mod empeding;
 pub mod external_apis;
 pub mod hash;
 pub mod http_client;
+pub mod job;
 pub mod logging;
 pub mod match_score;
 pub mod notification;

@@ -142,7 +142,10 @@ pub async fn fetch_all_jobs(pool: &PgPool) -> Result<Vec<JobRow>, sqlx::Error> {
             id,
             hash,
             metadata,
-            beckn_structure
+            beckn_structure,
+            job_id,
+            bpp_id,
+            embedding
         FROM jobs
         "#,
     )

@@ -6,6 +6,7 @@ use crate::db::{
 use crate::models::search::SearchRequestV2;
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use crate::services::empeding::{EmbeddingService, GcpEmbeddingService};
+use crate::utils::job::update_embeddings_for_bpp;
 use crate::utils::shared::ack;
 use crate::{
     models::search::SearchRequest,
@@ -31,7 +32,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::{error, event, info, Level};
 use uuid::Uuid;
-
 pub async fn handle_search(
     State(app_state): State<Arc<AppState>>,
     Json(req): Json<SearchRequest>,
@@ -925,7 +925,13 @@ pub async fn handle_cron_on_search_v2(
 
         tokio::spawn({
             let state = app_state.clone();
+            let bpp_id = bpp_id.clone();
+
             async move {
+                if let Err(e) = update_embeddings_for_bpp(&state, &bpp_id).await {
+                    error!("Embedding update failed: {}", e);
+                    return;
+                }
                 job_profile_match::run(state).await;
             }
         });

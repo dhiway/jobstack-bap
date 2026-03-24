@@ -1,6 +1,4 @@
-use crate::utils::empeding::{
-    compute_empeding_match_score, job_text_for_embedding, profile_text_for_embedding,
-};
+use crate::utils::empeding::{compute_empeding_match_score, profile_text_for_embedding};
 use crate::{
     db::{job::JobRow, profiles::ProfileRow},
     state::AppState,
@@ -41,23 +39,20 @@ pub async fn compute_match_score_empeding(
             .await
             .ok()?;
 
-        let beckn_structure = job.beckn_structure.as_ref()?;
-        let job_text = job_text_for_embedding(beckn_structure, &app_state.config);
-        let job_emb = embedding_service
-            .get_embedding(&job_text, &mut conn, app_state)
-            .await
-            .ok()?;
-
         let profile_norm = profile_emb.iter().map(|x| x * x).sum::<f32>().sqrt();
 
+        let job_emb = job.embedding.as_ref()?;
+
         let job_norm = job_emb.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+        let beckn_structure = job.beckn_structure.as_ref()?;
 
         let mut string_sim_cache = std::collections::HashMap::new();
 
         let score = compute_empeding_match_score(
             &profile_emb,
             profile_norm,
-            &job_emb,
+            job_emb,
             job_norm,
             &profile_meta,
             beckn_structure,
