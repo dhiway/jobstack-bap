@@ -9,6 +9,7 @@ use crate::services::empeding::{EmbeddingService, GcpEmbeddingService};
 use crate::services::match_score::compute_match_score_from_input;
 use crate::utils::job::update_embeddings_for_bpp;
 use crate::utils::shared::ack;
+use crate::vector::index_store::save_faiss;
 use crate::{
     models::search::{SearchRequest, SearchRequestV2, SearchTopKRequest},
     services::payload_generator::build_beckn_payload,
@@ -910,13 +911,35 @@ pub async fn handle_cron_on_search_v2(
     }
 
     if received_pages.len() as u64 == total_pages {
-        match deactivate_stale_jobs(&app_state.db_pool, &bpp_id, txn_id).await {
-            Ok(count) => info!(
-                "🧹 Stale jobes cleaned up: {} rows deleted (bpp_id={}, txn_id={})",
-                count, bpp_id, txn_id
-            ),
-            Err(e) => error!("Stale cleanup failed: {}", e),
+        let stale_job_ids = match deactivate_stale_jobs(&app_state.db_pool, &bpp_id, txn_id).await {
+            Ok(ids) => {
+                info!(
+                    "🧹 Stale jobs cleaned up: {} rows deactivated (bpp_id={}, txn_id={})",
+                    ids.len(),
+                    bpp_id,
+                    txn_id
+                );
+                ids
+            }
+            Err(e) => {
+                error!("Stale cleanup failed: {}", e);
+                Vec::new()
+            }
         };
+
+        if !stale_job_ids.is_empty() {
+            let faiss = app_state.faiss.read().await;
+
+            for job_id in stale_job_ids {
+                if let Err(e) = faiss.remove(job_id).await {
+                    error!("Failed to remove job_id={} from FAISS: {}", job_id, e);
+                }
+            }
+
+            if let Err(e) = save_faiss(&faiss).await {
+                error!("Failed to save FAISS index after stale cleanup: {}", e);
+            }
+        }
 
         info!(
             "🔗 Triggering job-profile match scoring after job pagination completion \
@@ -1070,10 +1093,9 @@ pub async fn handle_top_results(
 
     let mut results = Vec::new();
 
-    for (job_id, faiss_score) in top_k {
+    for (job_id, _) in top_k {
         if let Some(job) = job_map.get(&job_id) {
-            let (score, cosine) =
-                compute_match_score_from_input(&app_state, job, &profile_json).await;
+            let (score, _) = compute_match_score_from_input(&app_state, job, &profile_json).await;
 
             results.push(json!({
                 "job_id": job_id,

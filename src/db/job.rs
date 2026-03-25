@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
+use futures::stream::BoxStream;
 use serde_json::Value;
-use sqlx::{query, query_as, Error, FromRow, PgPool};
+use sqlx::{query, query_as, Error, FromRow, PgPool, Row};
 use uuid::Uuid;
 #[derive(Debug, FromRow)]
 pub struct JobRow {
@@ -31,6 +32,11 @@ pub struct NewJob {
     pub beckn_structure: Option<Value>,
     pub hash: String,
     pub last_synced_at: Option<DateTime<Utc>>,
+}
+#[derive(FromRow, Debug)]
+pub struct JobEmbeddingRow {
+    pub id: Uuid,
+    pub embedding: Vec<f32>,
 }
 
 pub async fn store_jobs(db_pool: &PgPool, jobs: &[NewJob]) -> Result<(), Error> {
@@ -150,8 +156,8 @@ pub async fn deactivate_stale_jobs(
     db_pool: &PgPool,
     bpp_id: &str,
     txn_id: &str,
-) -> Result<u64, sqlx::Error> {
-    let result = query(
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows = query(
         r#"
         UPDATE jobs
         SET is_active = false,
@@ -159,14 +165,20 @@ pub async fn deactivate_stale_jobs(
         WHERE bpp_id = $1
           AND transaction_id <> $2
           AND is_active = true
+        RETURNING id
         "#,
     )
     .bind(bpp_id)
     .bind(txn_id)
-    .execute(db_pool)
+    .fetch_all(db_pool)
     .await?;
 
-    Ok(result.rows_affected())
+    let job_ids = rows
+        .into_iter()
+        .map(|row| row.get::<Uuid, _>("id"))
+        .collect();
+
+    Ok(job_ids)
 }
 pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx::Error> {
     query_as::<_, JobRow>(
@@ -271,4 +283,17 @@ pub async fn fetch_jobs_by_ids(
     .await?;
 
     Ok(jobs)
+}
+pub fn stream_active_jobs_with_embeddings(
+    db_pool: &PgPool,
+) -> BoxStream<'_, Result<JobEmbeddingRow, sqlx::Error>> {
+    sqlx::query_as::<_, JobEmbeddingRow>(
+        r#"
+        SELECT id, embedding
+        FROM jobs
+        WHERE is_active = true
+          AND embedding IS NOT NULL
+        "#,
+    )
+    .fetch(db_pool)
 }

@@ -42,9 +42,9 @@ pub async fn start_http_server(
     let db_pool = PgPool::connect(&config.db.url).await?;
     info!("✅ connected to db at {}", &config.db.url);
 
-    let faiss = load_faiss(768, redis_pool.clone()).unwrap_or_else(|_| {
+    let faiss = load_faiss(config.gcp.dimension, redis_pool.clone()).unwrap_or_else(|_| {
         info!("⚠️ No FAISS index found, creating new one");
-        FaissService::new(768, redis_pool.clone())
+        FaissService::new(config.gcp.dimension, redis_pool.clone())
     });
 
     let faiss = Arc::new(RwLock::new(faiss));

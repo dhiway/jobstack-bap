@@ -9,5 +9,6 @@ pub mod logging;
 pub mod match_score;
 pub mod notification;
 pub mod profiles;
+pub mod redis;
 pub mod search;
 pub mod shared;

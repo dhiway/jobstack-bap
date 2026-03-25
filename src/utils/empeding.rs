@@ -4,7 +4,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use strsim::jaro_winkler;
-use tracing::info;
 
 pub fn cached_jaro(
     profile_str: &str,
@@ -110,7 +109,7 @@ pub fn compute_empeding_match_score(
     config: &AppConfig,
     string_sim_cache: &mut HashMap<(String, String), f32>,
 ) -> f32 {
-    info!("🔍 Computing match score...");
+    // info!("🔍 Computing match score...");
     let match_score = load_match_score_config(config.match_score_path.as_str());
 
     // Base cosine similarity using precomputed norms

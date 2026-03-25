@@ -76,8 +76,8 @@ pub async fn update_embeddings_for_bpp(
             }
             let faiss = app_state.faiss.read().await;
             for (job_id, embedding) in updates {
-                if let Err(e) = faiss.add(job_id, embedding).await {
-                    error!("Failed to add job_id={} to FAISS: {}", job_id, e);
+                if let Err(e) = faiss.upsert(job_id, embedding).await {
+                    error!("Failed to upsert job_id={} in FAISS: {}", job_id, e);
                 }
             }
         }
