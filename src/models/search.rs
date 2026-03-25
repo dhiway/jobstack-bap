@@ -100,6 +100,15 @@ pub struct SearchRequestV2 {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct SearchTopKRequest {
+    pub limit: Option<u32>,
+    pub role: Option<String>,
+    pub industry: Option<String>,
+    pub age: Option<u32>,
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Pagination {
     pub page: Option<u32>,
     pub limit: Option<u32>,

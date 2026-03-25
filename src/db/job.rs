@@ -243,3 +243,32 @@ pub async fn batch_update_job_embeddings(
 
     Ok(())
 }
+
+pub async fn fetch_jobs_by_ids(
+    pool: &PgPool,
+    job_ids: &[Uuid],
+) -> Result<Vec<JobRow>, sqlx::Error> {
+    if job_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let jobs = query_as::<_, JobRow>(
+        r#"
+        SELECT
+            id,
+            hash,
+            metadata,
+            beckn_structure,
+            job_id,
+            bpp_id,
+            embedding
+        FROM jobs
+        WHERE id = ANY($1)
+        "#,
+    )
+    .bind(job_ids)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(jobs)
+}

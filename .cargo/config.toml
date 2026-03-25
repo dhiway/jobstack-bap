@@ -1,0 +1,5 @@
+[build]
+rustflags = ["-L/opt/homebrew/opt/faiss/lib"]
+
+[target.aarch64-apple-darwin]
+linker = "clang"

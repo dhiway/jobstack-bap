@@ -68,3 +68,49 @@ pub async fn compute_match_score_empeding(
 
     result.unwrap_or((0, None))
 }
+
+pub async fn compute_match_score_from_input(
+    app_state: &AppState,
+    job: &JobRow,
+    profile_json: &JsonValue,
+) -> (i16, Option<JsonValue>) {
+    let embedding_service = GcpEmbeddingService;
+
+    let result: Option<(i16, Option<JsonValue>)> = async {
+        let mut conn = app_state.redis_pool.get().await.ok()?;
+
+        let profile_text = profile_text_for_embedding(profile_json, &app_state.config);
+
+        let profile_emb = embedding_service
+            .get_embedding(&profile_text, &mut conn, app_state)
+            .await
+            .ok()?;
+
+        let profile_norm = profile_emb.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+        let job_emb = job.embedding.as_ref()?;
+        let job_norm = job_emb.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+        let beckn_structure = job.beckn_structure.as_ref()?;
+
+        let mut string_sim_cache = std::collections::HashMap::new();
+
+        let score = compute_empeding_match_score(
+            &profile_emb,
+            profile_norm,
+            job_emb,
+            job_norm,
+            profile_json,
+            beckn_structure,
+            &app_state.config,
+            &mut string_sim_cache,
+        );
+
+        let score_i16 = (score * 10.0).round() as i16;
+
+        Some((score_i16, Some(json!({ "cosine_score": score }))))
+    }
+    .await;
+
+    result.unwrap_or((0, None))
+}

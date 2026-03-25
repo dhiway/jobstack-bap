@@ -1,15 +1,16 @@
 use crate::cron::job_profile_match;
+use crate::db::job::{fetch_jobs_by_ids, JobRow};
 use crate::db::{
     job::{deactivate_stale_jobs, store_jobs},
     match_score::fetch_jobs_with_matches,
 };
-use crate::models::search::SearchRequestV2;
 use crate::models::webhook::{Ack, AckResponse, AckStatus, WebhookPayload};
 use crate::services::empeding::{EmbeddingService, GcpEmbeddingService};
+use crate::services::match_score::compute_match_score_from_input;
 use crate::utils::job::update_embeddings_for_bpp;
 use crate::utils::shared::ack;
 use crate::{
-    models::search::SearchRequest,
+    models::search::{SearchRequest, SearchRequestV2, SearchTopKRequest},
     services::payload_generator::build_beckn_payload,
     state::AppState,
     utils::{
@@ -19,8 +20,8 @@ use crate::{
         hash::generate_query_hash,
         http_client::post_json,
         search::{
-            extract_jobs_from_on_search, matches_exclude, matches_query_dynamic,
-            send_open_jobs_search,
+            build_profile_json, extract_jobs_from_on_search, matches_exclude,
+            matches_query_dynamic, send_open_jobs_search,
         },
     },
 };
@@ -992,5 +993,104 @@ pub async fn handle_search_v3(
         "page": page,
         "limit": limit,
         "data": data
+    })))
+}
+
+pub async fn handle_top_results(
+    State(app_state): State<Arc<AppState>>,
+    Json(req): Json<SearchTopKRequest>,
+) -> Result<Json<JsonValue>, (StatusCode, Json<JsonValue>)> {
+    let embedding_service = GcpEmbeddingService;
+
+    let mut redis_conn = match app_state.redis_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("Redis error: {}", e)
+                })),
+            ))
+        }
+    };
+
+    let profile_json = build_profile_json(&req);
+
+    let profile_text = profile_text_for_embedding(&profile_json, &app_state.config);
+
+    let profile_embedding = match embedding_service
+        .get_embedding(&profile_text, &mut redis_conn, &app_state)
+        .await
+    {
+        Ok(v) if !v.is_empty() => v,
+        _ => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": "Failed to generate profile embedding"
+                })),
+            ))
+        }
+    };
+
+    let k = req.limit.unwrap_or(10) as usize;
+    let faiss = app_state.faiss.read().await;
+
+    let top_k = match faiss.search(profile_embedding.clone(), k).await {
+        Ok(res) => res,
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("FAISS search failed: {}", e)
+                })),
+            ))
+        }
+    };
+
+    let job_ids: Vec<uuid::Uuid> = top_k.iter().map(|(id, _)| *id).collect();
+
+    let jobs = match fetch_jobs_by_ids(&app_state.db_pool, &job_ids).await {
+        Ok(j) => j,
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("DB error: {}", e)
+                })),
+            ))
+        }
+    };
+
+    let job_map: HashMap<uuid::Uuid, JobRow> = jobs.into_iter().map(|j| (j.id, j)).collect();
+
+    let mut results = Vec::new();
+
+    for (job_id, faiss_score) in top_k {
+        if let Some(job) = job_map.get(&job_id) {
+            let (score, cosine) =
+                compute_match_score_from_input(&app_state, job, &profile_json).await;
+
+            results.push(json!({
+                "job_id": job_id,
+                "match_score": score,
+                "metadata": job.beckn_structure
+            }));
+        }
+    }
+
+    results.sort_by(|a, b| {
+        let a_score = a["match_score"].as_i64().unwrap_or(0);
+        let b_score = b["match_score"].as_i64().unwrap_or(0);
+        b_score.cmp(&a_score)
+    });
+
+    Ok(Json(json!({
+        "status": "ok",
+        "data": results
     })))
 }

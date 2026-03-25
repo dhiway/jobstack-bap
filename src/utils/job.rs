@@ -2,6 +2,7 @@ use crate::db::job::{batch_update_job_embeddings, fetch_jobs_pending_embedding};
 use crate::services::empeding::{EmbeddingService, GcpEmbeddingService};
 use crate::state::AppState;
 use crate::utils::empeding::job_text_for_embedding;
+use crate::vector::index_store::save_faiss;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -10,6 +11,7 @@ pub async fn update_embeddings_for_bpp(
     bpp_id: &str,
 ) -> Result<(), anyhow::Error> {
     let embedding_service = GcpEmbeddingService;
+
     let mut redis = app_state.redis_pool.get().await.map_err(|e| {
         error!("Redis connection failed: {}", e);
         e
@@ -39,14 +41,14 @@ pub async fn update_embeddings_for_bpp(
         let mut updates: Vec<(uuid::Uuid, Vec<f32>)> = Vec::new();
 
         for job in chunk {
-            let beckn = match job.beckn_structure.as_ref() {
+            let beckn = match &job.beckn_structure {
                 Some(b) => b,
                 None => continue,
             };
 
             let text = job_text_for_embedding(beckn, &app_state.config);
             info!(
-                "Generating embedding for job_id={} (text chars={})",
+                "Generating embedding for job_id={} with text length={}",
                 job.job_id,
                 text.len()
             );
@@ -70,8 +72,20 @@ pub async fn update_embeddings_for_bpp(
         if !updates.is_empty() {
             if let Err(e) = batch_update_job_embeddings(&app_state.db_pool, &updates).await {
                 error!("Batch embedding update failed: {}", e);
+                continue;
+            }
+            let faiss = app_state.faiss.read().await;
+            for (job_id, embedding) in updates {
+                if let Err(e) = faiss.add(job_id, embedding).await {
+                    error!("Failed to add job_id={} to FAISS: {}", job_id, e);
+                }
             }
         }
+    }
+
+    let faiss = app_state.faiss.read().await;
+    if let Err(e) = save_faiss(&faiss).await {
+        error!("Failed to save FAISS index: {}", e);
     }
 
     info!("Embedding generation completed (bpp_id={})", bpp_id);
