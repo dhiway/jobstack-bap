@@ -9,3 +9,4 @@ target/
 config/prod.yaml
 config/dev.yaml
 config/local.yaml
+faiss.index

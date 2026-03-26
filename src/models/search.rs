@@ -100,6 +100,27 @@ pub struct SearchRequestV2 {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct SearchTopKRequest {
+    pub limit: Option<u32>,
+
+    pub role: Option<String>,
+    pub industry: Option<String>,
+    pub location: Option<String>,
+
+    pub age: Option<u32>,
+
+    pub iti_specialization: Option<Vec<String>>,
+    pub languages: Option<Vec<String>>,
+    pub highest_qualification: Option<Vec<String>>,
+    pub software_skills: Option<Vec<String>>,
+
+    pub preferred_work_mode: Option<Vec<String>>,
+
+    pub monthly_in_hand: Option<f64>,
+    pub work_hours_per_day: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Pagination {
     pub page: Option<u32>,
     pub limit: Option<u32>,
