@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
+use futures::stream::BoxStream;
 use serde_json::Value;
-use sqlx::{query, query_as, Error, FromRow, PgPool};
+use sqlx::{query, query_as, Error, FromRow, PgPool, Row};
 use uuid::Uuid;
 #[derive(Debug, FromRow)]
 pub struct JobRow {
@@ -8,6 +9,9 @@ pub struct JobRow {
     pub hash: String,
     pub metadata: Option<Value>,
     pub beckn_structure: Option<Value>,
+    pub embedding: Option<Vec<f32>>,
+    pub job_id: String,
+    pub bpp_id: String,
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -28,6 +32,11 @@ pub struct NewJob {
     pub beckn_structure: Option<Value>,
     pub hash: String,
     pub last_synced_at: Option<DateTime<Utc>>,
+}
+#[derive(FromRow, Debug)]
+pub struct JobEmbeddingRow {
+    pub id: Uuid,
+    pub embedding: Vec<f32>,
 }
 
 pub async fn store_jobs(db_pool: &PgPool, jobs: &[NewJob]) -> Result<(), Error> {
@@ -115,6 +124,11 @@ pub async fn store_jobs(db_pool: &PgPool, jobs: &[NewJob]) -> Result<(), Error> 
                 THEN EXCLUDED.hash
                 ELSE jobs.hash
             END,
+            embedding = CASE
+                WHEN jobs.hash IS DISTINCT FROM EXCLUDED.hash
+                THEN NULL
+                ELSE jobs.embedding
+            END,
             transaction_id = EXCLUDED.transaction_id,
             bpp_id = EXCLUDED.bpp_id,
             bpp_uri = EXCLUDED.bpp_uri,
@@ -142,8 +156,8 @@ pub async fn deactivate_stale_jobs(
     db_pool: &PgPool,
     bpp_id: &str,
     txn_id: &str,
-) -> Result<u64, sqlx::Error> {
-    let result = query(
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows = query(
         r#"
         UPDATE jobs
         SET is_active = false,
@@ -151,14 +165,20 @@ pub async fn deactivate_stale_jobs(
         WHERE bpp_id = $1
           AND transaction_id <> $2
           AND is_active = true
+        RETURNING id
         "#,
     )
     .bind(bpp_id)
     .bind(txn_id)
-    .execute(db_pool)
+    .fetch_all(db_pool)
     .await?;
 
-    Ok(result.rows_affected())
+    let job_ids = rows
+        .into_iter()
+        .map(|row| row.get::<Uuid, _>("id"))
+        .collect();
+
+    Ok(job_ids)
 }
 pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx::Error> {
     query_as::<_, JobRow>(
@@ -167,7 +187,10 @@ pub async fn fetch_job_by_id(pool: &PgPool, job_id: Uuid) -> Result<JobRow, sqlx
             id,
             hash,
             metadata,
-            beckn_structure
+            beckn_structure,
+            job_id,
+            bpp_id,
+            embedding
         FROM jobs
         WHERE id = $1
         "#,
@@ -193,4 +216,84 @@ pub async fn fetch_job_by_job_id(pool: &PgPool, job_id: &str) -> Result<JobLooku
     .bind(job_id)
     .fetch_one(pool)
     .await
+}
+
+pub async fn fetch_jobs_pending_embedding(
+    db_pool: &PgPool,
+    bpp_id: &str,
+) -> Result<Vec<JobRow>, sqlx::Error> {
+    sqlx::query_as::<_, JobRow>(
+        r#"
+        SELECT *
+        FROM jobs
+        WHERE embedding IS NULL
+        AND bpp_id = $1
+        AND is_active = true
+        "#,
+    )
+    .bind(bpp_id)
+    .fetch_all(db_pool)
+    .await
+}
+pub async fn batch_update_job_embeddings(
+    db_pool: &PgPool,
+    updates: &[(uuid::Uuid, Vec<f32>)],
+) -> Result<(), sqlx::Error> {
+    for (id, embedding) in updates {
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET embedding = $1
+            WHERE id = $2
+            "#,
+        )
+        .bind(embedding)
+        .bind(id)
+        .execute(db_pool)
+        .await?;
+    }
+
+    Ok(())
+}
+
+pub async fn fetch_jobs_by_ids(
+    pool: &PgPool,
+    job_ids: &[Uuid],
+) -> Result<Vec<JobRow>, sqlx::Error> {
+    if job_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let jobs = query_as::<_, JobRow>(
+        r#"
+        SELECT
+            id,
+            hash,
+            metadata,
+            beckn_structure,
+            job_id,
+            bpp_id,
+            embedding
+        FROM jobs
+        WHERE id = ANY($1)
+        "#,
+    )
+    .bind(job_ids)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(jobs)
+}
+pub fn stream_active_jobs_with_embeddings(
+    db_pool: &PgPool,
+) -> BoxStream<'_, Result<JobEmbeddingRow, sqlx::Error>> {
+    sqlx::query_as::<_, JobEmbeddingRow>(
+        r#"
+        SELECT id, embedding
+        FROM jobs
+        WHERE is_active = true
+          AND embedding IS NOT NULL
+        "#,
+    )
+    .fetch(db_pool)
 }

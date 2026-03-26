@@ -10,7 +10,10 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 use tracing::info;
 
-use deadpool_redis::{Config as RedisConfig, Runtime};
+use crate::vector::faiss_service::FaissService;
+use crate::vector::index_store::load_faiss;
+use deadpool_redis::{Config as RedisConfig, Pool, Runtime};
+use tokio::sync::RwLock;
 
 pub async fn start_http_server(
     config: AppConfig,
@@ -20,13 +23,13 @@ pub async fn start_http_server(
     Box<dyn std::error::Error + Send + Sync>,
 > {
     let http_addr = format!("{}:{}", config.http.address, config.http.port);
-    let listener = tokio::net::TcpListener::bind(http_addr.clone()).await?;
+    let listener = TcpListener::bind(http_addr.clone()).await?;
     info!("🚀 Starting BAP-WEBHOOK server on {:?}", http_addr);
 
     let shared_state = SharedState::default();
 
     let redis_cfg = RedisConfig::from_url(config.redis.url.as_str());
-    let redis_pool = redis_cfg.create_pool(Some(Runtime::Tokio1))?;
+    let redis_pool: Pool = redis_cfg.create_pool(Some(Runtime::Tokio1))?;
 
     // Test Redis connection
     {
@@ -39,11 +42,19 @@ pub async fn start_http_server(
     let db_pool = PgPool::connect(&config.db.url).await?;
     info!("✅ connected to db at {}", &config.db.url);
 
+    let faiss = load_faiss(config.gcp.dimension, redis_pool.clone()).unwrap_or_else(|_| {
+        info!("⚠️ No FAISS index found, creating new one");
+        FaissService::new(config.gcp.dimension, redis_pool.clone())
+    });
+
+    let faiss = Arc::new(RwLock::new(faiss));
+
     let app_state = Arc::new(AppState {
         config: Arc::new(config.clone()),
         shared_state,
         redis_pool,
         db_pool,
+        faiss,
     });
 
     let _scheduler = start_cron_jobs(app_state.clone()).await;
@@ -69,7 +80,7 @@ pub async fn run_http_server(
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(async move {
             shutdown_rx.changed().await.ok();
-            tracing::info!("🚦 Gracefully shutting down all connections, ");
+            info!("🚦 Gracefully shutting down all connections");
         })
         .await?;
 

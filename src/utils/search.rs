@@ -1,6 +1,6 @@
 use crate::db::job::NewJob;
 use crate::models::core::{Descriptor, Tag, TagItem};
-use crate::models::search::{Intent, Item, Options, Pagination, SearchMessage};
+use crate::models::search::{Intent, Item, Options, Pagination, SearchMessage, SearchTopKRequest};
 use crate::models::webhook::WebhookPayload;
 use crate::services::payload_generator::build_beckn_payload;
 use crate::state::AppState;
@@ -8,7 +8,7 @@ use crate::utils::hash::hash_json;
 use crate::utils::http_client::post_json;
 use chrono::Utc;
 use redis::AsyncCommands;
-use serde_json::Value as JsonValue;
+use serde_json::{json, Value as JsonValue};
 use std::sync::Arc;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -266,4 +266,37 @@ pub async fn send_open_jobs_search(
             txn_id, page, source
         );
     }
+}
+
+pub fn build_profile_json(req: &SearchTopKRequest) -> JsonValue {
+    let mut metadata = serde_json::Map::new();
+
+    if let Some(role) = &req.role {
+        metadata.insert("role".to_string(), json!(role));
+    }
+
+    if let Some(industry) = &req.industry {
+        metadata.insert("industry".to_string(), json!(industry));
+    }
+
+    let mut who_i_am = serde_json::Map::new();
+
+    if let Some(age) = req.age {
+        who_i_am.insert("age".to_string(), json!(age));
+    }
+
+    if let Some(location) = &req.location {
+        let mut location_data = serde_json::Map::new();
+        location_data.insert("city".to_string(), json!(location));
+
+        who_i_am.insert("locationData".to_string(), JsonValue::Object(location_data));
+    }
+
+    if !who_i_am.is_empty() {
+        metadata.insert("whoIAm".to_string(), JsonValue::Object(who_i_am));
+    }
+
+    json!({
+        "metadata": JsonValue::Object(metadata)
+    })
 }
