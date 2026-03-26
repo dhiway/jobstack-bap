@@ -83,6 +83,7 @@ pub struct GcpConfig {
     pub project_id: String,
     pub model: String,
     pub auth_token: String,
+    pub dimension: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -1,6 +1,6 @@
 use crate::db::job::NewJob;
 use crate::models::core::{Descriptor, Tag, TagItem};
-use crate::models::search::{Intent, Item, Options, Pagination, SearchMessage};
+use crate::models::search::{Intent, Item, Options, Pagination, SearchMessage, SearchTopKRequest};
 use crate::models::webhook::WebhookPayload;
 use crate::services::payload_generator::build_beckn_payload;
 use crate::state::AppState;
@@ -8,7 +8,7 @@ use crate::utils::hash::hash_json;
 use crate::utils::http_client::post_json;
 use chrono::Utc;
 use redis::AsyncCommands;
-use serde_json::Value as JsonValue;
+use serde_json::{json, Value as JsonValue};
 use std::sync::Arc;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -266,4 +266,91 @@ pub async fn send_open_jobs_search(
             txn_id, page, source
         );
     }
+}
+
+pub fn build_profile_json(req: &SearchTopKRequest) -> JsonValue {
+    let mut metadata = serde_json::Map::new();
+
+    // /metadata/role
+    if let Some(role) = &req.role {
+        metadata.insert("role".to_string(), json!(role));
+    }
+
+    // /metadata/industry
+    if let Some(industry) = &req.industry {
+        metadata.insert("industry".to_string(), json!(industry));
+    }
+
+    // /metadata/whoIAm/*
+    let mut who_i_am = serde_json::Map::new();
+
+    if let Some(age) = req.age {
+        who_i_am.insert("age".to_string(), json!(age));
+    }
+
+    if let Some(location) = &req.location {
+        let mut location_data = serde_json::Map::new();
+        location_data.insert("city".to_string(), json!(location));
+        who_i_am.insert("locationData".to_string(), JsonValue::Object(location_data));
+    }
+
+    if !who_i_am.is_empty() {
+        metadata.insert("whoIAm".to_string(), JsonValue::Object(who_i_am));
+    }
+
+    // /metadata/whatIHave/*
+    let mut what_i_have = serde_json::Map::new();
+
+    if let Some(iti_specialization) = &req.iti_specialization {
+        if !iti_specialization.is_empty() {
+            what_i_have.insert("itiSpecialization".to_string(), json!(iti_specialization));
+        }
+    }
+
+    if let Some(languages) = &req.languages {
+        if !languages.is_empty() {
+            what_i_have.insert("languagesKnown".to_string(), json!(languages));
+        }
+    }
+
+    if let Some(highest_qualification) = &req.highest_qualification {
+        if !highest_qualification.is_empty() {
+            what_i_have.insert("highestEducation".to_string(), json!(highest_qualification));
+        }
+    }
+
+    if let Some(software_skills) = &req.software_skills {
+        if !software_skills.is_empty() {
+            what_i_have.insert("softwareSkills".to_string(), json!(software_skills));
+        }
+    }
+
+    if !what_i_have.is_empty() {
+        metadata.insert("whatIHave".to_string(), JsonValue::Object(what_i_have));
+    }
+
+    // /metadata/whatIWant/*
+    let mut what_i_want = serde_json::Map::new();
+
+    if let Some(preferred_work_mode) = &req.preferred_work_mode {
+        if !preferred_work_mode.is_empty() {
+            what_i_want.insert("preferredWorkMode".to_string(), json!(preferred_work_mode));
+        }
+    }
+
+    if let Some(monthly_in_hand) = req.monthly_in_hand {
+        what_i_want.insert("monthlyInHandPreferred".to_string(), json!(monthly_in_hand));
+    }
+
+    if let Some(work_hours_per_day) = req.work_hours_per_day {
+        what_i_want.insert("workHoursPerDay".to_string(), json!(work_hours_per_day));
+    }
+
+    if !what_i_want.is_empty() {
+        metadata.insert("whatIWant".to_string(), JsonValue::Object(what_i_want));
+    }
+
+    json!({
+        "metadata": JsonValue::Object(metadata)
+    })
 }

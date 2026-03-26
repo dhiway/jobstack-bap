@@ -1,4 +1,5 @@
 use crate::middleware::api_key::api_key_auth;
+pub mod admin;
 pub mod events;
 pub mod job;
 pub mod search;
@@ -33,6 +34,7 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
         .merge(select::routes(app_state.clone()))
         .merge(status::routes(app_state.clone()))
         .merge(events::routes(app_state.clone()))
+        .merge(admin::routes(app_state.clone()))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
             api_key_auth,

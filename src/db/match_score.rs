@@ -142,7 +142,10 @@ pub async fn fetch_all_jobs(pool: &PgPool) -> Result<Vec<JobRow>, sqlx::Error> {
             id,
             hash,
             metadata,
-            beckn_structure
+            beckn_structure,
+            job_id,
+            bpp_id,
+            embedding
         FROM jobs
         "#,
     )
@@ -259,7 +262,7 @@ pub async fn fetch_jobs_with_matches(
             let items: Vec<Value> = query_scalar(
                 r#"
                 SELECT jsonb_build_object(
-                    'job', to_jsonb(j.*),
+                     'job', to_jsonb(j.*) - 'embedding',
                     'profile_id', p.profile_id,
                     'match_score', jpm.match_score
                 )
@@ -402,7 +405,7 @@ pub async fn fetch_jobs_with_matches(
             let items: Vec<Value> = query_scalar(
                 r#"
                 SELECT jsonb_build_object(
-                    'job', to_jsonb(j.*),
+                    'job', to_jsonb(j.*) - 'embedding',
                     'profile_id', NULL,
                     'match_score', NULL
                 )

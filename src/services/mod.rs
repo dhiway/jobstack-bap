@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod empeding;
 pub mod events;
 pub mod job_apply;

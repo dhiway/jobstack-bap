@@ -33,6 +33,7 @@ impl EmbeddingService for GcpEmbeddingService {
             // info!("⚠️ Skipping embedding generation: input text is empty");
             return Ok(vec![]);
         }
+        // let start = std::time::Instant::now();
         let mut hasher = Sha256::new();
         hasher.update(text.as_bytes());
         let hash = hex::encode(hasher.finalize());
@@ -114,7 +115,8 @@ impl EmbeddingService for GcpEmbeddingService {
         } else {
             // info!("💾 Cached embedding | dims={}", embedding.len());
         }
-
+        // let duration = start.elapsed();
+        // info!("⏱️ get_embedding took: {:?}", duration);
         Ok(embedding)
     }
 }
