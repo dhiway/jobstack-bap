@@ -39,7 +39,7 @@ fn load_match_score_config(path: &str) -> Vec<MetaDataMatch> {
 
 pub fn profile_text_for_embedding(profile: &Value, config: &AppConfig) -> String {
     let mut parts = Vec::new();
-    let match_score = load_match_score_config(config.match_score_path.as_str());
+    let match_score = load_match_score_config(&config.match_score.config_path.as_str());
 
     for field in &match_score {
         if let crate::config::MatchMode::Embed = field.match_mode {
@@ -60,11 +60,16 @@ pub fn profile_text_for_embedding(profile: &Value, config: &AppConfig) -> String
         }
     }
 
+    if let Some(query_text) = profile.get("queryText").and_then(|v| v.as_str()) {
+        if !query_text.trim().is_empty() {
+            parts.push(format!("Additional user context: {}", query_text.trim()));
+        }
+    }
     parts.join(" ")
 }
 
 pub fn job_text_for_embedding(job: &Value, config: &AppConfig) -> String {
-    let match_score = load_match_score_config(config.match_score_path.as_str());
+    let match_score = load_match_score_config(&config.match_score.config_path.as_str());
 
     let mut parts = Vec::new();
 
@@ -110,12 +115,19 @@ pub fn compute_empeding_match_score(
     string_sim_cache: &mut HashMap<(String, String), f32>,
 ) -> f32 {
     // info!("🔍 Computing match score...");
-    let match_score = load_match_score_config(config.match_score_path.as_str());
+    let match_score = load_match_score_config(&config.match_score.config_path.as_str());
 
     // Base cosine similarity using precomputed norms
     let mut score = cosine_similarity_with_norm(profile_emb, job_emb, profile_norm, job_norm);
     // let base_score = score;
     // warn!("🧮 Base cosine similarity score: {:.4}", base_score);
+
+    if !config.match_score.apply_business_logic {
+        if score.is_nan() {
+            score = 0.0;
+        }
+        return score.clamp(0.0, 1.0);
+    }
 
     let mut mismatches = 0;
 
