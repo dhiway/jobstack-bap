@@ -29,6 +29,12 @@ pub struct Bpp {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MatchScoreConfig {
+    pub config_path: String,
+    pub apply_business_logic: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RedisConfig {
     pub url: String,
 }
@@ -173,7 +179,7 @@ pub struct AppConfig {
     pub cache: CacheConfig,
     pub cron: CronConfig,
     pub gcp: GcpConfig,
-    pub match_score_path: String,
+    pub match_score: MatchScoreConfig,
     pub services: ServicesConfig,
     pub bpp: Bpp,
     pub auth: AuthConfig,
