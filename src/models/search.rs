@@ -118,6 +118,7 @@ pub struct SearchTopKRequest {
 
     pub monthly_in_hand: Option<f64>,
     pub work_hours_per_day: Option<f64>,
+    pub query_text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

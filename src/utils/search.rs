@@ -351,6 +351,7 @@ pub fn build_profile_json(req: &SearchTopKRequest) -> JsonValue {
     }
 
     json!({
-        "metadata": JsonValue::Object(metadata)
+        "metadata": JsonValue::Object(metadata),
+         "queryText": req.query_text
     })
 }
