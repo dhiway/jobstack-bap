@@ -1098,7 +1098,7 @@ pub async fn handle_top_results(
             let (score, _) = compute_match_score_from_input(&app_state, job, &profile_json).await;
 
             results.push(json!({
-                "job_id": job_id,
+                "job_id": job.job_id,
                 "match_score": score,
                 "metadata": job.beckn_structure
             }));
