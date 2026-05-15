@@ -339,8 +339,8 @@ bap-onest-lite/
 
 ## License
 
-[Specify your license here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For issues and questions, please [open an issue](issues-url) or contact the maintainers.
+For issues and questions, please [open an issue](https://github.com/ONEST-Network/jobstack-bap/issues) or contact the maintainers.
