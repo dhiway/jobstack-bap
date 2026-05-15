@@ -1,25 +1,34 @@
-# ==========================
-# Example Configuration File
-# ==========================
-# Copy this file to config.yaml and update values as needed.
-# This file shows all supported configuration keys.
-
+# =============================================================================
+# BAP Onest Lite - Example Configuration File
+# =============================================================================
+# Copy this file to config.yaml (or use directly) and update values as needed.
+# This file shows all supported configuration keys with explanations.
+# =============================================================================
 
 # Enable or disable debug logging
+# Set to true for development, false for production
 debug: true
 
+# =============================================================================
+# HTTP Server Configuration
+# =============================================================================
 http:
   # The address where the service will listen (0.0.0.0 = all interfaces)
-  address: 0.0.0.0
+  address: "0.0.0.0"
   # The port for incoming requests
   port: 3008
 
+# =============================================================================
+# BAP (Buyer Application Provider) Configuration
+# =============================================================================
 bap:
-  # Unique identifier for your BAP (Buyer App)
+  # Unique identifier for your BAP in the Beckn network
+  # Format: subdomain.domain.com (e.g., "bap.example.com")
   id: "bap.example.com"
 
   # caller_uri: This is the endpoint where your BAP receives
   # responses for requests it initiates to the Beckn network.
+  # This is typically your BAP adapter endpoint.
   caller_uri: "https://example.com/bap/caller"
 
   # bap_uri: This is the publicly accessible endpoint that represents
@@ -27,38 +36,168 @@ bap:
   bap_uri: "https://example.com/bap/receiver"
 
   # Domain of the network (for example: ONDC verticals like TRV10, RET10, etc.)
+  # TRV10 = Transportation, RET10 = Retail, ONEST11 = Onest domain
   domain: "ONDC:TRV10"
 
-  # Protocol version used for communication
+  # Protocol version used for Beckn protocol communication
   version: "2.0.0"
 
-  # Time-to-live for requests (ISO8601 duration format, e.g., PT30S = 30 seconds)
+  # Time-to-live for requests (ISO8601 duration format)
+  # Example: PT30S = 30 seconds, PT1M = 1 minute
   ttl: "PT30S"
 
+# =============================================================================
+# Redis Configuration
+# =============================================================================
 redis:
-  # Redis connection string (format: redis://<host>:<port>)
+  # Redis connection string
+  # Format: redis://<host>:<port>
+  # For local development: redis://localhost:6379
+  # For Docker: redis://bap-redis:6379
   url: "redis://localhost:6379"
 
-db: 
+# =============================================================================
+# PostgreSQL Database Configuration
+# =============================================================================
+db:
   # Postgres connection string
   # Format: postgres://<user>:<password>@<host>:<port>/<database>
+  # Password should be URL-encoded if special characters present (%40 = @)
   url: "postgres://db_user:db_pass@localhost:5432/db_name"
+
+# =============================================================================
+# Cache Configuration
+# =============================================================================
 cache:
   # How long (in seconds) to keep BPP search responses in Redis.
-  # Example: 3600 = 1 hour
+  # Example: 3600 = 1 hour, 7200 = 2 hours
   result_ttl_secs: 3600
 
   # How long (in seconds) to keep txn_id → query_hash mapping in Redis.
   # This ensures on_search can resolve txn_id back to the query.
-  # Example: 3600 = 1 hour
-  txn_ttl_secs: 3600
+  # Example: 300 = 5 minutes
+  txn_ttl_secs: 300
 
   # Minimum interval (in seconds) between BAP search calls for the same query.
-  # Prevents hammering BAP; new calls only after this duration has passed.
-  # Example: 60 = 1 minutes
+  # Prevents hammering BPP; new calls only after this duration has passed.
+  # Example: 60 = 1 minute
   throttle_secs: 60
 
-# Cron jobs
+# =============================================================================
+# Cron Jobs Configuration
+# =============================================================================
+# Scheduled background tasks using tokio-cron-scheduler
 cron:
+  # Fetch jobs from BPP - runs periodically to sync open jobs
+  # Frequency: Every 3600 seconds (1 hour) recommended
   fetch_jobs:
-    seconds: 10
+    seconds: 3600
+
+  # Fetch profiles from Jobstack - syncs candidate profiles
+  # Frequency: Every 86400 seconds (24 hours) - daily sync
+  fetch_profiles:
+    seconds: 86400
+
+  # Compute match scores - calculates job-profile compatibility
+  # Frequency: Every 10800 seconds (3 hours) recommended
+  compute_match_scores:
+    seconds: 10800
+    # Number of records to process per batch
+    batch: 50
+    # Source for embedding computation: 'empeding' (GCP Gemini)
+    source: "empeding"
+
+  # Send notifications - WhatsApp notifications for high match scores
+  # Schedule type: weekly, daily, custom
+  notification:
+    schedule_type: "weekly"
+    # For weekly: day of week (1=Monday, 7=Sunday)
+    weekday: 1
+    # Day of month (1-31)
+    day: 1
+    # Hour (0-23)
+    hour: 1
+    # Minute (0-59)
+    minute: 1
+    # Second (0-59)
+    second: 1
+    # Minimum match score threshold for notifications
+    min_score: 7
+    # Number of candidates to notify per batch
+    batch: 30
+
+# =============================================================================
+# GCP Configuration (for embeddings)
+# =============================================================================
+gcp:
+  # GCP project ID
+  project_id: "your-gcp-project-id"
+  # Gemini embedding model name
+  model: "gemini-embedding-001"
+  # Embedding dimension (gemini-embedding-001 = 3072)
+  dimension: 3072
+  # GCP authentication token/API key
+  auth_token: "your-gcp-auth-token"
+
+# =============================================================================
+# External Services Configuration
+# =============================================================================
+services:
+  # Jobstack Seeker Service - for job and profile sync
+  seeker:
+    # Base URL for the seeker API
+    base_url: "https://seeker.yourdomain.com/api/v1"
+    # API key for authentication
+    api_key: "your-seeker-api-key"
+
+  # Notification Service - for WhatsApp notifications
+  notification:
+    # Base URL for notification service
+    base_url: "https://notification-service.yourdomain.com"
+    # Notification service secret
+    ns_secret: "your-ns-secret"
+    # Notification service key ID
+    ns_key_id: "your-key-id"
+    # Content SID for WhatsApp templates
+    content_sid: "your-content-sid"
+
+  # Google Maps Geocoding API
+  geo_coding:
+    # Base URL for geocoding API
+    base_url: "https://maps.googleapis.com/maps/api"
+    # Google Maps API key
+    api_key: "your-google-maps-api-key"
+
+# =============================================================================
+# BPP (Beckn Provider Platform) Configuration
+# =============================================================================
+# BPP for candidate profiles (separate from job BPP)
+bpp:
+  # Unique BPP identifier
+  id: "bpp-profiles.example.com"
+  # Webhook endpoint for profile-related responses
+  caller_uri: "https://example.com/webhook/profiles"
+  # BPP domain
+  domain: "ONDC:ONEST11"
+  # Protocol version
+  version: "2.0.0"
+  # Request TTL
+  ttl: "PT30S"
+  # Catalog name for BPP
+  catalog_name: "Talent Profiles Catalog"
+
+# =============================================================================
+# Authentication Configuration
+# =============================================================================
+auth:
+  # API key for external service authentication (X-API-Key header)
+  x_api_key: "your-x-api-key"
+
+# =============================================================================
+# Match Score Configuration
+# =============================================================================
+match_score:
+  # Path to match score configuration JSON file
+  config_path: "./config/match_score.json"
+  # Enable business logic application in scoring
+  apply_business_logic: true
